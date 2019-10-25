@@ -1,13 +1,8 @@
 (Build)
 (Output)
-tmp
 Debug
-DebugXP
 Release
-ReleaseTest
-ReleaseAlpha
-ReleaseXP
-ReleaseTestXP
+tmp
 ipch
 *.suo
 *.opensdf
@@ -22,8 +17,5 @@ ipch
 *.VC.db
 *.opendb
 *.pdb
-VERSION_DYN.h
-version.tmp
-/ERAEP_Installer/(OverrideFiles)
-/ERAEP_Installer/(RuntimeFiles)
-/ERAEP_Installer/(wix)
+*.o
+v380/v380
