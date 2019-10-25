@@ -4,6 +4,10 @@
 #include "stdafx.h"
 #include "UtlSocket.h"
 
+extern "C" {
+#include "aes.h"
+}
+
 static const unsigned char mLoginData[256] = { 0x8f, 0x04, /* ........ */
 0x00, 0x00, 0xfe, 0x03, 0x00, 0x00, 0x02, 0x01, /* ........ */
 0x00, 0x00, 0x00, 0xb7, 0xbf, 0x0f, 0x01, 0x00, /* ........ */
@@ -116,9 +120,72 @@ const uint8_t ptz_up[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8,
 const uint8_t ptz_down[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0xec, 0x03, 0x00, 0x00, 0x01, 0x00 };
 const uint8_t send_cmd[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0x00, 0x00, 0x01, 0x00 };
 
+std::string generateRandomPrintable(size_t len)
+{
+	char set[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()_+-=";
+	int nSet = _countof(set);
+
+	std::string s;
+	s.resize(len);
+
+	std::unique_ptr<char> c(new char);
+	srand((unsigned int)c.get());
+
+	for (size_t i = 0; i < len; i++) {
+		s[i] = set[rand() % nSet];
+	}
+
+	return s;
+}
+
+void GeneratePassword(std::vector<uint8_t>& output, const std::string& password)
+{
+	const size_t nRandomKey = 16;
+	std::string randomKey = generateRandomPrintable(nRandomKey);
+	const char* staticKey = "macrovideo+*#!^@";
+
+	std::vector<uint8_t> paddedPassword;
+	size_t pad = AES_BLOCKLEN - (password.size() % AES_BLOCKLEN);
+	paddedPassword.resize(password.size() + pad);
+	memcpy_s(paddedPassword.data(), paddedPassword.size(), password.c_str(), password.size());
+
+	AES_ctx ctx;
+	AES_init_ctx(&ctx, (uint8_t*)staticKey);
+
+	size_t nBlock = paddedPassword.size() / AES_BLOCKLEN;
+	for (size_t i = 0; i < nBlock; i++) {
+		AES_ECB_encrypt(&ctx, paddedPassword.data() + i * AES_BLOCKLEN);
+	}
+
+	AES_ctx ctx2;
+	AES_init_ctx(&ctx2, (uint8_t*)randomKey.data());
+	for (size_t i = 0; i < nBlock; i++) {
+		AES_ECB_encrypt(&ctx2, paddedPassword.data() + i * AES_BLOCKLEN);
+	}
+
+	output.resize(nRandomKey + nBlock * AES_BLOCKLEN);
+	memcpy_s(output.data(), output.size(), randomKey.c_str(), nRandomKey);
+	memcpy_s(output.data() + nRandomKey, output.size() - nRandomKey, paddedPassword.data(), paddedPassword.size());
+}
+
 int main(int argc, const char* argv[])
 {
 	int retry = 0;
+
+	std::string username = "admin";
+	std::string password = "password";
+
+	for (int i = 0; i < argc; i++)
+	{
+		if ((_stricmp(argv[i], "-u") == 0) && ((i + 1) < argc))
+		{
+			username = argv[i + 1];
+		}
+		else if ((_stricmp(argv[i], "-p") == 0) && ((i + 1) < argc))
+		{
+			password = argv[i + 1];
+		}
+	}
 
 	_setmode(_fileno(stdout), O_BINARY);
 
@@ -139,7 +206,13 @@ int main(int argc, const char* argv[])
 
 			socketAuth.Connect("192.168.1.234", "8800");
 
+			std::vector<uint8_t> pw;
+			GeneratePassword(pw, password);
+
 			buf.insert(buf.end(), mLoginData, mLoginData + sizeof(mLoginData));
+			memcpy_s(buf.data() + 49, 32, username.c_str(), username.size());
+			memcpy_s(buf.data() + 49 + 32, 32, pw.data(), pw.size());
+
 			socketAuth.Send(buf);
 			socketAuth.Recv(buf, 256);
 			socketAuth.Close();
