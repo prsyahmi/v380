@@ -170,8 +170,9 @@ void GeneratePassword(std::vector<uint8_t>& output, const std::string& password)
 
 void printHelp(FILE* f)
 {
-	fprintf(f, "Usage:\n");
+	fprintf(f, "Usage example:\n");
 	fprintf(f, "  v380 -u admin -p password -ip 192.168.1.2 -port 8800\n");
+	fprintf(f, "  v380 -p password -addr 192.168.1.2 | ffplay -vf \"setpts = N / (25 * TB)\" -i -\n");
 	fprintf(f, "\n");
 	fprintf(f, "OPTIONS:\n");
 	fprintf(f, "  -u              username         (default admin)\n");
@@ -222,13 +223,13 @@ int main(int argc, const char* argv[])
 	}
 
 	if (ip.empty()) {
-		fprintf(stderr, "Camera address not set\n");
+		fprintf(stderr, "Camera address not set\n\n");
 		printHelp(stderr);
 		return 1;
 	}
 
 	if (port.empty()) {
-		fprintf(stderr, "Camera port not set\n");
+		fprintf(stderr, "Camera port not set\n\n");
 		printHelp(stderr);
 		return 1;
 	}
