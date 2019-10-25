@@ -171,6 +171,20 @@ void GeneratePassword(std::vector<uint8_t>& output, const std::string& password)
 	memcpy_s(output.data() + nRandomKey, output.size() - nRandomKey, paddedPassword.data(), paddedPassword.size());
 }
 
+void printHelp(FILE* f)
+{
+	fprintf(f, "Usage:\n");
+	fprintf(f, "  v380 -u admin -p password -ip 192.168.1.2 -port 8800\n");
+	fprintf(f, "\n");
+	fprintf(f, "OPTIONS:\n");
+	fprintf(f, "  -u              username         (default admin)\n");
+	fprintf(f, "  -p              password\n");
+	fprintf(f, "  -addr           camera IP/address\n");
+	fprintf(f, "  -port           camera port      (default 8800)\n");
+	fprintf(f, "  --enable-ptz=0  Disable pan-tilt-zoom via keyboard press\n");
+	fprintf(f, "  -h              Show this help\n");
+}
+
 int main(int argc, const char* argv[])
 {
 	int retry = 0;
@@ -179,6 +193,8 @@ int main(int argc, const char* argv[])
 	std::string port = "8800";
 	std::string username = "admin";
 	std::string password = "password";
+	bool enable_ptz = true;
+	bool show_help = false;
 
 	for (int i = 0; i < argc; i++)
 	{
@@ -198,16 +214,31 @@ int main(int argc, const char* argv[])
 		{
 			port = argv[i + 1];
 		}
+		else if ((_stricmp(argv[i], "--enable-ptz=0") == 0))
+		{
+			enable_ptz = false;
+		}
+		else if ((_stricmp(argv[i], "-h") == 0) || (_stricmp(argv[i], "--help") == 0))
+		{
+			show_help = true;
+		}
 	}
 
 	if (ip.empty()) {
 		fprintf(stderr, "Camera address not set\n");
+		printHelp(stderr);
 		return 1;
 	}
 
 	if (port.empty()) {
 		fprintf(stderr, "Camera port not set\n");
+		printHelp(stderr);
 		return 1;
+	}
+
+	if (show_help) {
+		printHelp(stdout);
+		return 0;
 	}
 
 	std::vector<uint8_t> ptzcmd(send_cmd, send_cmd + sizeof(send_cmd));
@@ -328,9 +359,9 @@ int main(int argc, const char* argv[])
 				}
 
 				bool up, dn, l, r;
-				ptzcmd[8] = 0xe8;
-				ptzcmd[10] = 0xe8;
-				if (readKey(up, dn, l, r)) {
+				if (enable_ptz && readKey(up, dn, l, r)) {
+					ptzcmd[8] = 0xe8;
+					ptzcmd[10] = 0xe8;
 					if (up) ptzcmd[10] = 0xeb;
 					if (dn) ptzcmd[10] = 0xec;
 					if (l) ptzcmd[8] = 0xea;
