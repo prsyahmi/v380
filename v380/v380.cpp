@@ -120,6 +120,9 @@ const uint8_t ptz_up[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8,
 const uint8_t ptz_down[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0xec, 0x03, 0x00, 0x00, 0x01, 0x00 };
 const uint8_t send_cmd[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0x00, 0x00, 0x01, 0x00 };
 
+bool readKey(bool& up, bool& down, bool& left, bool& right);
+
+
 std::string generateRandomPrintable(size_t len)
 {
 	char set[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()_+-=";
@@ -207,6 +210,7 @@ int main(int argc, const char* argv[])
 		return 1;
 	}
 
+	std::vector<uint8_t> ptzcmd(send_cmd, send_cmd + sizeof(send_cmd));
 	_setmode(_fileno(stdout), O_BINARY);
 
 	while (retry++ < 5)
@@ -322,6 +326,17 @@ int main(int argc, const char* argv[])
 					exitloop = true;
 					break;
 				}
+
+				bool up, dn, l, r;
+				ptzcmd[8] = 0xe8;
+				ptzcmd[10] = 0xe8;
+				if (readKey(up, dn, l, r)) {
+					if (up) ptzcmd[10] = 0xeb;
+					if (dn) ptzcmd[10] = 0xec;
+					if (l) ptzcmd[8] = 0xea;
+					if (r) ptzcmd[8] = 0xe9;
+					socketStream.Send(ptzcmd);
+				}
 			}
 		}
 		catch (const std::exception& ex)
@@ -333,3 +348,38 @@ int main(int argc, const char* argv[])
     return 0;
 }
 
+bool readKey(bool& up, bool& down, bool& left, bool& right)
+{
+	bool ret = false;
+
+	up = false;
+	down = false;
+	left = false;
+	right = false;
+
+	if (GetForegroundWindow() == GetConsoleWindow())
+	{
+		if ((GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0)
+		{
+			right = true;
+			ret = true;
+		}
+		if ((GetAsyncKeyState(VK_LEFT) & 0x8000) != 0)
+		{
+			left = true;
+			ret = true;
+		}
+		if ((GetAsyncKeyState(VK_UP) & 0x8000) != 0)
+		{
+			up = true;
+			ret = true;
+		}
+		if ((GetAsyncKeyState(VK_DOWN) & 0x8000) != 0)
+		{
+			down = true;
+			ret = true;
+		}
+	}
+
+	return ret;
+}
