@@ -3,10 +3,7 @@
 
 #include "stdafx.h"
 #include "UtlSocket.h"
-
-extern "C" {
 #include "aes.h"
-}
 
 static const unsigned char mLoginData[256] = { 0x8f, 0x04, /* ........ */
 0x00, 0x00, 0xfe, 0x03, 0x00, 0x00, 0x02, 0x01, /* ........ */
@@ -126,13 +123,13 @@ bool readKey(bool& up, bool& down, bool& left, bool& right);
 std::string generateRandomPrintable(size_t len)
 {
 	char set[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()_+-=";
-	int nSet = _countof(set);
+	int nSet = sizeof(set);
 
 	std::string s;
 	s.resize(len);
 
 	std::unique_ptr<char> c(new char);
-	srand((unsigned int)c.get());
+	srand((unsigned int)(size_t)c.get());
 
 	for (size_t i = 0; i < len; i++) {
 		s[i] = set[rand() % nSet];
@@ -242,7 +239,10 @@ int main(int argc, const char* argv[])
 	}
 
 	std::vector<uint8_t> ptzcmd(send_cmd, send_cmd + sizeof(send_cmd));
+
+#ifdef _WIN32
 	_setmode(_fileno(stdout), O_BINARY);
+#endif
 
 	while (retry++ < 5)
 	{
@@ -388,6 +388,7 @@ bool readKey(bool& up, bool& down, bool& left, bool& right)
 	left = false;
 	right = false;
 
+#ifdef _WIN32
 	if (GetForegroundWindow() == GetConsoleWindow())
 	{
 		if ((GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0)
@@ -411,6 +412,7 @@ bool readKey(bool& up, bool& down, bool& left, bool& right)
 			ret = true;
 		}
 	}
+#endif
 
 	return ret;
 }

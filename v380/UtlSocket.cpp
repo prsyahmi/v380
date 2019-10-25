@@ -3,9 +3,22 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-UtlSocket::UtlSocket()
-	: m_Sock(NULL)
+#ifndef _WIN32
+int WSAGetLastError()
 {
+	return 0;
+}
+
+#define INVALID_SOCKET  (SOCKET)(~0)
+#define SOCKET_ERROR            (-1)
+//#define TCP_NODELAY     O_NDELAY
+#define closesocket(x)  close(x)
+#endif
+
+UtlSocket::UtlSocket()
+	: m_Sock(INVALID_SOCKET)
+{
+#ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
 	int err;
@@ -16,6 +29,7 @@ UtlSocket::UtlSocket()
 	if (err != 0) {
 		throw std::runtime_error("WSAStartup failed with error" + std::to_string(err));
 	}
+#endif
 }
 
 UtlSocket::~UtlSocket()
@@ -24,7 +38,9 @@ UtlSocket::~UtlSocket()
 		closesocket(m_Sock);
 	}
 
+#ifdef _WIN32
 	WSACleanup();
+#endif
 }
 
 void UtlSocket::Connect(const std::string& ip, const std::string& port)
@@ -37,7 +53,7 @@ void UtlSocket::Connect(const std::string& ip, const std::string& port)
 	auto addrinfo_deleter = [](struct addrinfo* ptr)->void { freeaddrinfo(ptr); };
 	std::unique_ptr<struct addrinfo, decltype(addrinfo_deleter)> result(0, addrinfo_deleter);
 
-	ZeroMemory(&hints, sizeof(hints));
+	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
@@ -72,7 +88,7 @@ void UtlSocket::Close()
 		closesocket(m_Sock);
 	}
 
-	m_Sock = NULL;
+	m_Sock = INVALID_SOCKET;
 }
 
 bool UtlSocket::DisableNagle(bool state)

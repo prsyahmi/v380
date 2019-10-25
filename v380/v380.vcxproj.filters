@@ -41,7 +41,7 @@
     <ClCompile Include="UtlSocket.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="aes.c">
+    <ClCompile Include="aes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
