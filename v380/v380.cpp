@@ -172,6 +172,8 @@ int main(int argc, const char* argv[])
 {
 	int retry = 0;
 
+	std::string ip = "";
+	std::string port = "8800";
 	std::string username = "admin";
 	std::string password = "password";
 
@@ -185,6 +187,24 @@ int main(int argc, const char* argv[])
 		{
 			password = argv[i + 1];
 		}
+		else if ((_stricmp(argv[i], "-addr") == 0) && ((i + 1) < argc))
+		{
+			ip = argv[i + 1];
+		}
+		else if ((_stricmp(argv[i], "-port") == 0) && ((i + 1) < argc))
+		{
+			port = argv[i + 1];
+		}
+	}
+
+	if (ip.empty()) {
+		fprintf(stderr, "Camera address not set\n");
+		return 1;
+	}
+
+	if (port.empty()) {
+		fprintf(stderr, "Camera port not set\n");
+		return 1;
 	}
 
 	_setmode(_fileno(stdout), O_BINARY);
@@ -204,7 +224,7 @@ int main(int argc, const char* argv[])
 			hdr.reserve(12);
 			vframe.reserve(8192);
 
-			socketAuth.Connect("192.168.1.234", "8800");
+			socketAuth.Connect(ip, port);
 
 			std::vector<uint8_t> pw;
 			GeneratePassword(pw, password);
@@ -217,7 +237,7 @@ int main(int argc, const char* argv[])
 			socketAuth.Recv(buf, 256);
 			socketAuth.Close();
 
-			socketStream.Connect("192.168.1.234", "8800");
+			socketStream.Connect(ip, port);
 			socketStream.DisableNagle();
 
 			uint32_t authTicket = *(uint32_t*)(buf.data() + 13); // there is 2 bytes changed, but copy uint32 size for safety
