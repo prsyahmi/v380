@@ -1,6 +1,21 @@
 # v380
 Extract h264 from v380 camera where you can use it to feed another application
 
+# Help
+```
+OPTIONS:
+  -u              username         (default admin)
+  -p              password
+  -addr           camera IP/address
+  -mac            camera MAC address
+  -id             camera ID
+  -port           camera port      (default 8800)
+  -retry          Number of connection attempt (default 5)
+  --enable-ptz=0  Disable pan-tilt-zoom via keyboard press
+  --discover      Discover camera
+  -h              Show this help
+```
+
 # Usage example
 ### Connect by IP and feed it to ffplay
 `./v380 -u admin -p password -port 8800 -ip 192.168.1.2 | ffplay -vf \"setpts = N / (25 * TB)\" -i -`
