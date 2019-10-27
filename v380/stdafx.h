@@ -20,14 +20,28 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <errno.h>
+
 typedef int SOCKET;
 #define Sleep sleep
 #define memcpy_s(dst, dstsize, src, srcsize)  memcpy(dst, src, srcsize)
 #define _stricmp strcasecmp
+
+static int WSAGetLastError()
+{
+	return errno;
+}
+
+#define INVALID_SOCKET  (SOCKET)(~0)
+#define SOCKET_ERROR            (-1)
+#define WSAEWOULDBLOCK EWOULDBLOCK
+#define closesocket(x)  close(x)
 
 #endif
 
@@ -38,4 +52,5 @@ typedef int SOCKET;
 #include <memory>
 #include <vector>
 #include <string.h>
-
+#include <chrono>
+#include <algorithm>

@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "UtlSocket.h"
+#include "UtlDiscovery.h"
 #include "aes.h"
 
 static const unsigned char mLoginData[256] = { 0x8f, 0x04, /* ........ */
@@ -171,15 +172,20 @@ void GeneratePassword(std::vector<uint8_t>& output, const std::string& password)
 void printHelp(FILE* f)
 {
 	fprintf(f, "Usage example:\n");
-	fprintf(f, "  v380 -u admin -p password -ip 192.168.1.2 -port 8800\n");
+	fprintf(f, "  v380 -u admin -p password -port 8800 -ip 192.168.1.2\n");
+	fprintf(f, "  v380 -u admin -p password -port 8800 -mac aa:bb:cc:11:22:33\n");
+	fprintf(f, "  v380 -u admin -p password -port 8800 -id 123456789\n");
 	fprintf(f, "  v380 -p password -addr 192.168.1.2 | ffplay -vf \"setpts = N / (25 * TB)\" -i -\n");
 	fprintf(f, "\n");
 	fprintf(f, "OPTIONS:\n");
 	fprintf(f, "  -u              username         (default admin)\n");
 	fprintf(f, "  -p              password\n");
 	fprintf(f, "  -addr           camera IP/address\n");
+	fprintf(f, "  -mac            camera MAC address\n");
+	fprintf(f, "  -id             camera ID\n");
 	fprintf(f, "  -port           camera port      (default 8800)\n");
 	fprintf(f, "  --enable-ptz=0  Disable pan-tilt-zoom via keyboard press\n");
+	fprintf(f, "  --discover      Discover camera\n");
 	fprintf(f, "  -h              Show this help\n");
 }
 
@@ -188,6 +194,8 @@ int main(int argc, const char* argv[])
 	int retry = 0;
 
 	std::string ip = "";
+	std::string id = "";
+	std::string mac = "";
 	std::string port = "8800";
 	std::string username = "admin";
 	std::string password = "password";
@@ -203,6 +211,21 @@ int main(int argc, const char* argv[])
 		else if ((_stricmp(argv[i], "-p") == 0) && ((i + 1) < argc))
 		{
 			password = argv[i + 1];
+		}
+		else if ((_stricmp(argv[i], "-mac") == 0) && ((i + 1) < argc))
+		{
+			mac = argv[i + 1];
+			auto asciitolower = [](char in)->char {
+				if (in <= 'Z' && in >= 'A')
+					return in - ('Z' - 'z');
+				return in;
+			};
+
+			std::transform(mac.begin(), mac.end(), mac.begin(), asciitolower);
+		}
+		else if ((_stricmp(argv[i], "-id") == 0) && ((i + 1) < argc))
+		{
+			id = argv[i + 1];
 		}
 		else if ((_stricmp(argv[i], "-addr") == 0) && ((i + 1) < argc))
 		{
@@ -220,9 +243,19 @@ int main(int argc, const char* argv[])
 		{
 			show_help = true;
 		}
+		else if ((_stricmp(argv[i], "-d") == 0) || (_stricmp(argv[i], "--discover") == 0))
+		{
+			UtlDiscovery socketDiscovery;
+			auto vDevices = socketDiscovery.Discover();
+
+			for (auto it = vDevices.begin(); it != vDevices.end(); ++it) {
+				printf(" ID:  %s\n IP:  %s\n MAC: %s\n\n", it->devid.c_str(), it->ip.c_str(), it->mac.c_str());
+			}
+			return 0;
+		}
 	}
 
-	if (ip.empty()) {
+	if (ip.empty() && mac.empty() && id.empty()) {
 		fprintf(stderr, "Camera address not set\n\n");
 		printHelp(stderr);
 		return 1;
@@ -260,6 +293,28 @@ int main(int argc, const char* argv[])
 			hdr.reserve(12);
 			vframe.reserve(8192);
 
+			if (ip.empty() && (id.size() || mac.size()))
+			{
+				UtlDiscovery socketDiscovery;
+				auto vDevices = socketDiscovery.Discover();
+
+				for (auto it = vDevices.begin(); it != vDevices.end(); ++it) {
+					if (id.size() && id == it->devid) {
+						ip = it->ip;
+						break;
+					}
+					if (mac.size() && mac == it->mac) {
+						ip = it->ip;
+						break;
+					}
+				}
+
+				if (ip.empty()) {
+					fprintf(stderr, "Unable to find camera with specified mac/id\n\n");
+					return 1;
+				}
+			}
+			
 			socketAuth.Connect(ip, port);
 
 			std::vector<uint8_t> pw;

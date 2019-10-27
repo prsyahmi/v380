@@ -3,18 +3,6 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-#ifndef _WIN32
-int WSAGetLastError()
-{
-	return 0;
-}
-
-#define INVALID_SOCKET  (SOCKET)(~0)
-#define SOCKET_ERROR            (-1)
-//#define TCP_NODELAY     O_NDELAY
-#define closesocket(x)  close(x)
-#endif
-
 UtlSocket::UtlSocket()
 	: m_Sock(INVALID_SOCKET)
 {
@@ -70,7 +58,7 @@ void UtlSocket::Connect(const std::string& ip, const std::string& port)
 	{
 		m_Sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
 		if (m_Sock == INVALID_SOCKET) {
-			throw std::runtime_error("Failed to create socket" + std::to_string(WSAGetLastError()));
+			throw std::runtime_error("Failed to create socket " + std::to_string(WSAGetLastError()));
 		}
 
 		iResult = connect(m_Sock, ptr->ai_addr, (int)ptr->ai_addrlen);
