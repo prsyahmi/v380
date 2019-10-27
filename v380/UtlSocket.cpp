@@ -102,8 +102,27 @@ int UtlSocket::Send(std::vector<uint8_t>& buffer)
 	return Send(buffer.data(), buffer.size());
 }
 
-int UtlSocket::Recv(void* out, size_t length)
+int UtlSocket::Recv(void* out, size_t length, int timeoutMillis)
 {
+	if (timeoutMillis) {
+		struct timeval tv;
+		fd_set rset;
+		int isready;
+
+		FD_ZERO(&rset);
+		FD_SET(m_Sock, &rset);
+
+		tv.tv_sec = timeoutMillis / 1000;
+		tv.tv_usec = 0;
+
+		isready = select(m_Sock + 1, &rset, NULL, NULL, &tv);
+		if (isready < 0) {
+			throw std::runtime_error("Socket error");
+		} else if (isready == 0) {
+			throw std::runtime_error("Socket timeout");
+		}
+	}
+
 	memset(out, 0, length);
 	int res = recv(m_Sock, (char*)out, (int)length, 0);
 
@@ -119,13 +138,13 @@ int UtlSocket::Recv(void* out, size_t length)
 	return res;
 }
 
-int UtlSocket::Recv(std::vector<uint8_t>& buffer)
+int UtlSocket::Recv(std::vector<uint8_t>& buffer, int timeoutMillis)
 {
-	return Recv(buffer.data(), buffer.size());
+	return Recv(buffer.data(), buffer.size(), timeoutMillis);
 }
 
-int UtlSocket::Recv(std::vector<uint8_t>& buffer, size_t length)
+int UtlSocket::Recv(std::vector<uint8_t>& buffer, size_t length, int timeoutMillis)
 {
 	buffer.resize(length);
-	return Recv(buffer.data(), buffer.size());
+	return Recv(buffer.data(), buffer.size(), timeoutMillis);
 }

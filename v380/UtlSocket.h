@@ -17,8 +17,8 @@ public:
 	int Send(const void* pubData, size_t length);
 	int Send(std::vector<uint8_t>& buffer);
 
-	int Recv(void* out, size_t length);
-	int Recv(std::vector<uint8_t>& buffer);
-	int Recv(std::vector<uint8_t>& buffer, size_t length);
+	int Recv(void* out, size_t length, int timeoutMillis = 0);
+	int Recv(std::vector<uint8_t>& buffer, int timeoutMillis = 0);
+	int Recv(std::vector<uint8_t>& buffer, size_t length, int timeoutMillis = 0);
 };
 

@@ -184,6 +184,7 @@ void printHelp(FILE* f)
 	fprintf(f, "  -mac            camera MAC address\n");
 	fprintf(f, "  -id             camera ID\n");
 	fprintf(f, "  -port           camera port      (default 8800)\n");
+	fprintf(f, "  -retry          Number of connection attempt (default 5)\n");
 	fprintf(f, "  --enable-ptz=0  Disable pan-tilt-zoom via keyboard press\n");
 	fprintf(f, "  --discover      Discover camera\n");
 	fprintf(f, "  -h              Show this help\n");
@@ -201,6 +202,7 @@ int main(int argc, const char* argv[])
 	std::string password = "password";
 	bool enable_ptz = true;
 	bool show_help = false;
+	int retryCount = 5;
 
 	for (int i = 0; i < argc; i++)
 	{
@@ -211,6 +213,10 @@ int main(int argc, const char* argv[])
 		else if ((_stricmp(argv[i], "-p") == 0) && ((i + 1) < argc))
 		{
 			password = argv[i + 1];
+		}
+		if ((_stricmp(argv[i], "-retry") == 0) && ((i + 1) < argc))
+		{
+			retryCount = atoi(argv[i + 1]);
 		}
 		else if ((_stricmp(argv[i], "-mac") == 0) && ((i + 1) < argc))
 		{
@@ -278,7 +284,7 @@ int main(int argc, const char* argv[])
 	_setmode(_fileno(stdout), O_BINARY);
 #endif
 
-	while (retry++ < 5)
+	while (retry++ < retryCount || retryCount == 0)
 	{
 		try
 		{
@@ -310,8 +316,8 @@ int main(int argc, const char* argv[])
 				}
 
 				if (ip.empty()) {
-					fprintf(stderr, "Unable to find camera with specified mac/id\n\n");
-					return 1;
+					fprintf(stderr, "Unable to find camera with specified mac/id\n");
+					continue;
 				}
 			}
 			
@@ -325,7 +331,7 @@ int main(int argc, const char* argv[])
 			memcpy_s(buf.data() + 49 + 32, 32, pw.data(), pw.size());
 
 			socketAuth.Send(buf);
-			socketAuth.Recv(buf, 256);
+			socketAuth.Recv(buf, 256, 5000);
 			socketAuth.Close();
 
 			socketStream.Connect(ip, port);
@@ -341,10 +347,10 @@ int main(int argc, const char* argv[])
 
 			buf.clear();
 			socketStream.Send(mStreamStart, sizeof(mStreamStart));
-			socketStream.Recv(buf, 256);
+			socketStream.Recv(buf, 256, 5000);
 
 			bool exitloop = false;
-			while (socketStream.Recv(hdr, 12) >= 12 && !exitloop)
+			while (socketStream.Recv(hdr, 12, 5000) >= 12 && !exitloop)
 			{
 				switch (hdr[0])
 				{
@@ -363,7 +369,7 @@ int main(int argc, const char* argv[])
 					buf.resize(len);
 					int n = 0;
 					while (n < len) {
-						n += socketStream.Recv(buf.data() + n, len - n);
+						n += socketStream.Recv(buf.data() + n, len - n, 5000);
 					}
 
 					retry = 0;
@@ -428,7 +434,7 @@ int main(int argc, const char* argv[])
 		}
 		catch (const std::exception& ex)
 		{
-			fprintf(stderr, "%s", ex.what());
+			fprintf(stderr, "%s\n", ex.what());
 		}
 	}
 
