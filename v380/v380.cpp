@@ -299,7 +299,7 @@ int main(int argc, const char* argv[])
 			hdr.reserve(12);
 			vframe.reserve(8192);
 
-			if (ip.empty() && (id.size() || mac.size()))
+			if (id.size() || mac.size())
 			{
 				UtlDiscovery socketDiscovery;
 				auto vDevices = socketDiscovery.Discover();
