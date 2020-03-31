@@ -18,7 +18,7 @@ OPTIONS:
 
 # Usage example
 ### Connect by IP and feed it to ffplay
-`./v380 -u admin -p password -port 8800 -ip 192.168.1.2 | ffplay -vf \"setpts = N / (25 * TB)\" -i -`
+`./v380 -u admin -p password -port 8800 -addr 192.168.1.2 | ffplay -vf \"setpts = N / (25 * TB)\" -i -`
 ### Connect by id and feed it to ffplay
 `./v380 -u admin -p password -port 8800 -id 123456 | ffplay -vf \"setpts = N / (25 * TB)\" -i -`
 ### Connect by mac address and feed it to ffmpeg to ffserver
