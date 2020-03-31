@@ -285,12 +285,15 @@ int main(int argc, const char* argv[])
 			hdr.reserve(12);
 			vframe.reserve(8192);
 
-			if (id.size() || mac.size())
 			{
 				UtlDiscovery socketDiscovery;
 				auto vDevices = socketDiscovery.Discover();
 
 				for (auto it = vDevices.begin(); it != vDevices.end(); ++it) {
+					if (ip.size() && ip == it->ip) {
+						id = it->devid;
+						break;
+					}
 					if (id.size() && id == it->devid) {
 						ip = it->ip;
 						break;
