@@ -6,41 +6,6 @@
 #include "UtlDiscovery.h"
 #include "aes.h"
 
-static const unsigned char mStreamStart[256] = { 0x2f, 0x01, /* ....../. */
-0x00, 0x00, 0xe9, 0x03, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00              /* ...... */
-};
-
 #pragma pack (push, 1)
 struct TCommandReq {
 	int32_t command;   // NEW_USERVERIFY = 1167
@@ -50,20 +15,37 @@ struct TCommandReq {
 			uint8_t unknown2;  // 1, 2=our
 			uint32_t unknown3; // 10 = LoginFromServerEX, 11 = LoginFromMRServerEX, 1=our
 			uint32_t deviceId;
-			char hostDateTime[32]; // optional
+			char hostDateTime[32]; // optional - maybe related to unk1/2, on v380 pc this is a domain name
 			char username[32];
 			char password[32]; // consists of randomkey:password
 		} login;
 		struct {
-			uint32_t deviceId;
-			uint32_t unknown1; // a value, not reversed yet
-			uint16_t unknown2; // hardcoded to 20
-			uint32_t authTicket;
-			uint32_t unknown3;
-			uint32_t unknown4; // 0x1001
-			uint32_t unknown5;
-			uint32_t unknown6;
-		} streamLogin;
+			uint32_t deviceId;   // 4:  +292
+			uint32_t unknown1;   // 8:  +284    = HSPI_V_StartPreview a4
+			uint16_t unknown2;   // 12: hardcoded to 20
+			uint32_t authTicket; // 14: +304
+			uint32_t unknown3;   // 18: unused
+			uint32_t unknown4;   // 22: *(+344) == !0 + 4096 (v14 + 4096) "0x1001" audio related?
+			uint32_t unknown5;   // 26: +288    = sound related?
+			uint32_t unknown6;   // 30: unused
+		} streamLogin_lan;
+		struct {
+			uint32_t unknown1; // 1022
+			char domain[32];
+			uint8_t unknown2[18];
+			uint16_t camPort;    // 58: v15 + 180 = 0x60 0x22 0x31 0x37 "8800"
+			uint16_t unknown3;   // 60: This is not used (corrupted overlapped with domain)
+			uint32_t deviceId;   // 62: v51
+			uint32_t authTicket; // 66: v49
+			uint32_t session;    // 70: v52
+			uint32_t unknown4;   // 74: v57 = 0
+			uint8_t unknown5;    // 78: = 20 hardcoded
+			uint32_t unknown6;   // 79: v14 = 0x1001
+			uint32_t unknown7;   // 83: v56 = 0
+		} streamLogin_cloud;
+		struct {
+			uint32_t unknown1;
+		} streamStart;
 	} u;
 };
 
@@ -94,6 +76,14 @@ struct TLoginResp {
 	uint16_t panoRad; // 107
 	uint32_t unknown1;
 	uint8_t canUpdateDevice; // 112 (canUpdateDevice = [112] == 2)
+};
+
+struct TStreamLogin301 {
+	int32_t command; // 401
+	int32_t v21;
+	uint16_t v73;
+	uint32_t width;
+	uint32_t height;
 };
 #pragma pack (pop)
 
@@ -353,17 +343,37 @@ int main(int argc, const char* argv[])
 
 			std::fill(buf.begin(), buf.end(), 0);
 			req->command = 301; // stream login
-			req->u.streamLogin.deviceId = stoi(id);
-			req->u.streamLogin.unknown2 = 0x14;   // hardcoded in HSPC_PreviewDLL.dll
-			req->u.streamLogin.authTicket = resp.authTicket;
-			req->u.streamLogin.unknown4 = 0x1001; // not sure
+			req->u.streamLogin_lan.deviceId = stoi(id);
+			req->u.streamLogin_lan.unknown1 = 0;
+			req->u.streamLogin_lan.unknown2 = 0x14;   // hardcoded in HSPC_PreviewDLL.dll, maybe fps?
+			req->u.streamLogin_lan.authTicket = resp.authTicket;
+			req->u.streamLogin_lan.unknown4 = 4096 + 1; // not sure
+			req->u.streamLogin_lan.unknown5 = 0; // not sure
 
 			socketStream.Send(buf);
-			//socketStream.Recv(buf, 412);
+			if (socketStream.Recv(buf, 412, 5000) < 16) {
+				fprintf(stderr, "Login response: expected >= 16 bytes\n");
+				continue;
+			}
+
+			TStreamLogin301 loginResp = *reinterpret_cast<TStreamLogin301*>(buf.data());
+			if (loginResp.command != 401) {
+				fprintf(stderr, "Login response: expected 401, got %d\n", loginResp.command);
+				continue;
+			}
+
+			if (loginResp.v21 == -11 || loginResp.v21 == -12) {
+				fprintf(stderr, "Login response: unsupported %d, continuing\n", loginResp.v21);
+			} else if (loginResp.v21 != 402 && loginResp.v21 != 1001) {
+				fprintf(stderr, "Login response: unsupported %d\n", loginResp.v21);
+				continue;
+			}
+
+			req->command = 303; // stream start
+			req->u.streamStart.unknown1 = loginResp.v21;
+			socketStream.Send(buf);
 
 			buf.clear();
-			socketStream.Send(mStreamStart, sizeof(mStreamStart));
-			socketStream.Recv(buf, 256, 5000);
 
 			bool exitloop = false;
 			while (socketStream.Recv(hdr, 12, 5000) >= 12 && !exitloop)
