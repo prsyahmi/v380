@@ -18,9 +18,9 @@ OPTIONS:
 
 # Usage example
 ### Connect by IP and feed it to ffplay
-`./v380 -u admin -p password -port 8800 -addr 192.168.1.2 | ffplay -vf \"setpts = N / (25 * TB)\" -i -`
+`./v380 -u admin -p password -port 8800 -addr 192.168.1.2 | ffplay -vcodec h264 -probesize 32 -formatprobesize 0 -avioflags direct -flags low_delay -i -`
 ### Connect by id and feed it to ffplay
-`./v380 -u admin -p password -port 8800 -id 123456 | ffplay -vf \"setpts = N / (25 * TB)\" -i -`
+`./v380 -u admin -p password -port 8800 -id 123456 | ffplay -vcodec h264 -probesize 32 -formatprobesize 0 -avioflags direct -flags low_delay -i -`
 ### Connect by mac address and feed it to ffmpeg to ffserver
 `./v380 -p password -mac 11:22:33:aa:bb:cc | ffmpeg -i - http://localhost:8090/feed1.ffm`
 ### Feed to gstreamer hosting mjpeg
