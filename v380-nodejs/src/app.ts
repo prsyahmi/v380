@@ -155,6 +155,7 @@ async function entry() {
 		if (!conf.ip) {
 			const discRes = await discovery.discover();
 			console.log(discRes);
+			// TODO: assign IP address after discovery
 		}
 
 		const host = conf.ip;

@@ -18,16 +18,18 @@ let curId = 0;
 let width = 0;
 let height = 0;
 let fps = 0;
+let serverPort = 0;
 const app = express();
 
-export function init(serverPort: number, packet: any) {
+export function init(listenPort: number, packet: any) {
 	width = packet.width;
 	height = packet.height;
 	fps = packet.maybeFps;
+	serverPort = listenPort;
 	console.log(`${width}x${height} @ ${fps} fps`);
 
-	app.listen(serverPort);
-	console.log(`Server started at port ${serverPort}`);
+	app.listen(listenPort);
+	console.log(`Server started at port ${listenPort}`);
 }
 
 function streamChunk(sock: Socket, size: number): Promise<Buffer> {
@@ -44,10 +46,10 @@ function streamChunk(sock: Socket, size: number): Promise<Buffer> {
 	});
 }
 
-const vidStreams: stream.PassThrough[] = [];
-const audStreams: stream.PassThrough[] = [];
+const vidStreams: stream.Writable[] = [];
+const audStreams: stream.Writable[] = [];
 
-function createStream(collections: stream.PassThrough[]) {
+function createStream(collections: stream.Writable[]) {
 	const id = ++curId;
 	const strm = new stream.PassThrough();
 	(strm as any)._id = id;
@@ -59,14 +61,12 @@ function createStream(collections: stream.PassThrough[]) {
 	};
 }
 
-function removeStream(collections: stream.PassThrough[], id: number) {
+function removeStream(collections: stream.Writable[], id: number) {
 	const i = collections.findIndex((v: any) => v._id === id);
 	if (i >= 0) {
 		collections.splice(i, 1);
 	}
 }
-
-///const audFile = fs.createWriteStream('test2.wav');
 
 let videoPacketQueue: Buffer[] = [];
 let audioPacketQueue: Buffer[] = [];
@@ -105,9 +105,6 @@ export async function handleStream(packet: Buffer, sock: Socket) {
 				for (const s of audStreams) {
 					s.write(concatBuff);
 				}
-				//const audFile = fs.createWriteStream('test' + streamPacket.index + '.wav');
-				//audFile.write(Buffer.concat(audioPacketQueue));
-				//audFile.end();
 				audioPacketQueue = [];
 			}
 			break;
@@ -122,7 +119,7 @@ app.get('/audio/:filename', (req, res) => {
 	const newStream = createStream(audStreams);
 
 	res.contentType('flv');
-	ffmpeg()
+	const f = ffmpeg()
 		.format('flv')
 		.input(newStream.strm)
 		.withInputOption(['-f s16le', '-ar 8000', '-acodec adpcm_ima_ws', '-ac 1'])
@@ -132,6 +129,7 @@ app.get('/audio/:filename', (req, res) => {
 		.audioFrequency(8000)
 		.audioChannels(1)
 
+	f
 		.on('end', () => {
 			removeStream(audStreams, newStream.id);
 		})
@@ -140,6 +138,8 @@ app.get('/audio/:filename', (req, res) => {
 			removeStream(audStreams, newStream.id);
 		})
 		.pipe(res, { end: true });
+
+	console.log(f._getArguments());
 });
 
 app.get('/video/:filename', (req, res) => {
@@ -149,23 +149,18 @@ app.get('/video/:filename', (req, res) => {
 	const f = ffmpeg()
 		// input
 		.input(newStream.strm)
-		.inputFPS(20)
-		//.input('http://localhost:4000/audio/test.flv')
-		//.addOption(['-vsync 0'])
+		.withInputOption(['-vcodec h264', '-probesize 32', '-formatprobesize 0', '-avioflags direct', '-flags low_delay'])
+		.input(`http://localhost:${serverPort}/audio/stream.flv`)
+		.addOption(['-vsync 0'])
 		// output
 		.format('flv')
 		.flvmeta()
-		//.size('1920x1080')
-		//.videoBitrate('512k')
-		//.videoCodec('libx264')
-		.videoCodec('copy')
-		.fps(20)
-		.noAudio()
-	//.audioCodec('copy')
-	//.audioBitrate('32k')
-	//.audioCodec('aac')
-	//.audioFrequency(8000)
-	//.audioChannels(1)
+		.size(`${width}x${height}`)
+		.videoBitrate('512k')
+		.videoCodec('libx264')
+		//.videoCodec('copy')
+		.fps(fps)
+		.audioCodec('copy')
 
 	f
 		.on('end', () => {
@@ -179,6 +174,6 @@ app.get('/video/:filename', (req, res) => {
 		})
 		.pipe(res, { end: true });
 
-	console.log(`Stream ${newStream.id} started`);
+	// console.log(`Stream ${newStream.id} started`);
 	console.log(f._getArguments());
 });
