@@ -97,6 +97,7 @@ interface IConfigFile {
 	port?: number;
 	username: string;
 	password: string;
+	serverPort: number;
 }
 
 if (0) {
@@ -187,7 +188,7 @@ async function entry() {
 
 			if (loginResp.command === 1168) {
 				if (loginResp.loginResult === 1001) {
-					console.log('Logged in');
+					console.log('Camera logged in');
 				} else if (loginResp.loginResult === 1011) {
 					throw new Error('Invalid username');
 				} else if (loginResp.loginResult === 1012) {
@@ -268,7 +269,7 @@ function startStreaming(conf: IConfigFile, resp: any) {
 			readStreamPacket(socketStream);
 
 			stage++;
-			init(streamLoginResp);
+			init(conf.serverPort, streamLoginResp);
 		} else if (stage === 1) {
 			// readStreamPacket(socketStream);
 		}

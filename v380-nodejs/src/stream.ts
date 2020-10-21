@@ -18,12 +18,16 @@ let curId = 0;
 let width = 0;
 let height = 0;
 let fps = 0;
+const app = express();
 
-export function init(packet: any) {
+export function init(serverPort: number, packet: any) {
 	width = packet.width;
 	height = packet.height;
 	fps = packet.maybeFps;
 	console.log(`${width}x${height} @ ${fps} fps`);
+
+	app.listen(serverPort);
+	console.log(`Server started at port ${serverPort}`);
 }
 
 function streamChunk(sock: Socket, size: number): Promise<Buffer> {
@@ -113,8 +117,6 @@ export async function handleStream(packet: Buffer, sock: Socket) {
 	}
 }
 
-const app = express();
-
 app.get('/audio/:filename', (req, res) => {
 
 	const newStream = createStream(audStreams);
@@ -180,5 +182,3 @@ app.get('/video/:filename', (req, res) => {
 	console.log(`Stream ${newStream.id} started`);
 	console.log(f._getArguments());
 });
-
-app.listen(4000);
