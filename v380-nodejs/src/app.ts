@@ -267,10 +267,10 @@ function startStreaming(conf: IConfigFile, resp: any) {
 
 			streamStartStruct.pack(streamStartReq, streamStartData);
 			socketStream.write(buff);
-			readStreamPacket(socketStream);
 
 			stage++;
 			init(conf.serverPort, streamLoginResp);
+			readStreamPacket(socketStream);
 		} else if (stage === 1) {
 			// readStreamPacket(socketStream);
 		}
