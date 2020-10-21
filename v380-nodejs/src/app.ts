@@ -3,7 +3,12 @@ import * as crypto from 'crypto';
 import * as discovery from './discovery';
 import * as t from 'typebase';
 import * as net from 'net';
+import * as fs from 'fs';
+import { promisify } from 'util';
 import { handleStream, init } from './stream';
+
+const readFileAsync = promisify(fs.readFile);
+const statAsync = promisify(fs.stat);
 
 const loginStruct = t.Struct.define([
 	['command', t.i32],
@@ -86,6 +91,18 @@ const streamLogin301RespStruct = t.Struct.define([
 	['height', t.ui32],
 ]);
 
+interface IConfigFile {
+	id: string;
+	ip?: string;
+	port?: number;
+	username: string;
+	password: string;
+}
+
+if (0) {
+	console.log(loginStruct, loginRespStruct, streamLoginCloudStruct, streamLoginLanStruct, streamLogin301RespStruct);
+}
+
 function generatePassword(password: string) {
 	const generateRandomPrintable = (length: number) => {
 		const set = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()_+-=';
@@ -115,60 +132,89 @@ function generatePassword(password: string) {
 	return Buffer.concat([Buffer.from(randomKey), res2]);
 }
 
-if (argv.indexOf('discover') >= 0) {
-	discovery.discover();
-	console.log(loginStruct, loginRespStruct, streamLoginCloudStruct, streamLoginLanStruct, streamLogin301RespStruct);
-} else {
-	const socketAuth = net.connect({
-		host: '192.168.1.234',
-		port: 8800,
-	});
+async function entry() {
+	if (argv.indexOf('discover') >= 0) {
+		console.log('Discovering...');
+		const res = discovery.discover();
+		console.log(res);
+		return;
+	}
 
-	socketAuth.on('connect', () => {
-		const buff = Buffer.alloc(256);
-		const loginReq = new t.Pointer(buff, 0);
+	try {
+		await statAsync('./config.json');
+	} catch (err) {
+		console.error('Please create config.json file, see config.example.json');
+		return;
+	}
 
-		const loginReqData = {
-			command: 1167,
-			deviceId: Buffer.from('12345'),
-			unknown1: 1022,
-			unknown2: 2,
-			unknown3: 1,
-			hostDateTime: [],
-			username: Buffer.from('admin'),
-			password: generatePassword('123'),
+	try {
+		const confRaw = await readFileAsync('./config.json');
+		const conf: IConfigFile = JSON.parse(confRaw.toString());
+
+		if (!conf.ip) {
+			const discRes = await discovery.discover();
+			console.log(discRes);
 		}
 
-		loginStruct.pack(loginReq, loginReqData);
-		socketAuth.write(buff);
-	});
+		const host = conf.ip;
+		const port = conf.port || 8800;
+		const socketAuth = net.connect({
+			host,
+			port,
+		});
 
-	socketAuth.on('data', (data) => {
-		const loginResp = loginRespStruct.unpack(new t.Pointer(data));
+		socketAuth.on('connect', () => {
+			const buff = Buffer.alloc(256);
+			const loginReq = new t.Pointer(buff, 0);
 
-		if (loginResp.command === 1168) {
-			if (loginResp.loginResult === 1001) {
-				console.log('Logged in');
-			} else if (loginResp.loginResult === 1011) {
-				throw new Error('Invalid username');
-			} else if (loginResp.loginResult === 1012) {
-				throw new Error('Invalid password');
-			} else if (loginResp.loginResult === 1018) {
-				throw new Error('Invalid device id');
+			const loginReqData = {
+				command: 1167,
+				deviceId: Buffer.from(conf.id),
+				unknown1: 1022,
+				unknown2: 2,
+				unknown3: 1,
+				hostDateTime: [],
+				username: Buffer.from(conf.username),
+				password: generatePassword(conf.password),
 			}
-		}
 
-		socketAuth.destroy();
-		startStreaming(loginResp);
-	});
+			loginStruct.pack(loginReq, loginReqData);
+			socketAuth.write(buff);
+		});
+
+		socketAuth.on('data', (data) => {
+			const loginResp = loginRespStruct.unpack(new t.Pointer(data));
+
+			if (loginResp.command === 1168) {
+				if (loginResp.loginResult === 1001) {
+					console.log('Logged in');
+				} else if (loginResp.loginResult === 1011) {
+					throw new Error('Invalid username');
+				} else if (loginResp.loginResult === 1012) {
+					throw new Error('Invalid password');
+				} else if (loginResp.loginResult === 1018) {
+					throw new Error('Invalid device id');
+				}
+			}
+
+			socketAuth.destroy();
+			startStreaming(conf, loginResp);
+		});
+	} catch (err) {
+		console.error(err);
+	}
 }
 
-function startStreaming(resp: any) {
+entry().catch((err) => {
+	console.error(err);
+})
+
+function startStreaming(conf: IConfigFile, resp: any) {
 	let stage = 0;
 	const buff = Buffer.alloc(256);
 	const socketStream = net.connect({
-		host: '192.168.1.234',
-		port: 8800,
+		host: conf.ip,
+		port: conf.port || 8800,
 	});
 
 	socketStream.setTimeout(5000);
@@ -179,7 +225,7 @@ function startStreaming(resp: any) {
 
 		const streamLoginLanData = {
 			command: 301,
-			deviceId: Buffer.from('12345'),
+			deviceId: Buffer.from(conf.id),
 			unknown1: 0,
 			maybeFps: 20, // hardcoded in HSPC_PreviewDLL.dll, maybe fps?
 			authTicket: resp.authTicket,

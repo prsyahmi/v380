@@ -14,13 +14,16 @@ const streamStruct = t.Struct.define([
 	['len', t.ui16],
 ]);
 
+let curId = 0;
 let width = 0;
 let height = 0;
+let fps = 0;
 
 export function init(packet: any) {
-	console.log(packet);
 	width = packet.width;
 	height = packet.height;
+	fps = packet.maybeFps;
+	console.log(`${width}x${height} @ ${fps} fps`);
 }
 
 function streamChunk(sock: Socket, size: number): Promise<Buffer> {
@@ -37,8 +40,29 @@ function streamChunk(sock: Socket, size: number): Promise<Buffer> {
 	});
 }
 
-const vidStream = new stream.PassThrough();
-const audStream = new stream.PassThrough();
+const vidStreams: stream.PassThrough[] = [];
+const audStreams: stream.PassThrough[] = [];
+
+function createStream(collections: stream.PassThrough[]) {
+	const id = ++curId;
+	const strm = new stream.PassThrough();
+	(strm as any)._id = id;
+	collections.push(strm);
+
+	return {
+		id,
+		strm
+	};
+}
+
+function removeStream(collections: stream.PassThrough[], id: number) {
+	const i = collections.findIndex((v: any) => v._id === id);
+	if (i >= 0) {
+		collections.splice(i, 1);
+	}
+}
+
+///const audFile = fs.createWriteStream('test2.wav');
 
 let videoPacketQueue: Buffer[] = [];
 let audioPacketQueue: Buffer[] = [];
@@ -61,7 +85,10 @@ export async function handleStream(packet: Buffer, sock: Socket) {
 			// Video
 			videoPacketQueue.push(streamData);
 			if (streamPacket.curFrame === streamPacket.totalFrame - 1) {
-				vidStream.write(Buffer.concat(videoPacketQueue));
+				const concatBuff = Buffer.concat(videoPacketQueue);
+				for (const s of vidStreams) {
+					s.write(concatBuff);
+				}
 				videoPacketQueue = [];
 			}
 			break;
@@ -70,46 +97,88 @@ export async function handleStream(packet: Buffer, sock: Socket) {
 			// Audio
 			audioPacketQueue.push(streamData);
 			if (streamPacket.curFrame === streamPacket.totalFrame - 1) {
-				audStream.write(Buffer.concat(audioPacketQueue));
+				const concatBuff = Buffer.concat(audioPacketQueue).slice(17);
+				for (const s of audStreams) {
+					s.write(concatBuff);
+				}
+				//const audFile = fs.createWriteStream('test' + streamPacket.index + '.wav');
+				//audFile.write(Buffer.concat(audioPacketQueue));
+				//audFile.end();
 				audioPacketQueue = [];
 			}
 			break;
+
+		default:
+			console.log('unknown type', streamPacket.type);
 	}
 }
 
 const app = express();
 
-app.get('/video/:filename', (req, res) => {
+app.get('/audio/:filename', (req, res) => {
+
+	const newStream = createStream(audStreams);
+
 	res.contentType('flv');
-	// make sure you set the correct path to your video file storage
-	// const pathToMovie = __dirname + '/../' + req.params.filename;
 	ffmpeg()
+		.format('flv')
+		.input(newStream.strm)
+		.withInputOption(['-f s16le', '-ar 8000', '-acodec adpcm_ima_ws', '-ac 1'])
+		.noVideo()
+		.audioBitrate('32k')
+		.audioCodec('aac')
+		.audioFrequency(8000)
+		.audioChannels(1)
+
+		.on('end', () => {
+			removeStream(audStreams, newStream.id);
+		})
+		.on('error', (err) => {
+			console.log(err.message);
+			removeStream(audStreams, newStream.id);
+		})
+		.pipe(res, { end: true });
+});
+
+app.get('/video/:filename', (req, res) => {
+	const newStream = createStream(vidStreams);
+
+	res.contentType('flv');
+	const f = ffmpeg()
 		// input
-		.input(vidStream)
+		.input(newStream.strm)
 		.inputFPS(20)
+		//.input('http://localhost:4000/audio/test.flv')
+		//.addOption(['-vsync 0'])
 		// output
 		.format('flv')
 		.flvmeta()
-		.size('1920x1080')
+		//.size('1920x1080')
 		//.videoBitrate('512k')
 		//.videoCodec('libx264')
+		.videoCodec('copy')
 		.fps(20)
-		.audioBitrate('96k')
-		.audioCodec('aac')
-		.audioFrequency(22050)
-		.audioChannels(2)
+		.noAudio()
+	//.audioCodec('copy')
+	//.audioBitrate('32k')
+	//.audioCodec('aac')
+	//.audioFrequency(8000)
+	//.audioChannels(1)
 
-		//.addOption(['-probesize 32', '-formatprobesize 0', '-avioflags direct', '-flags low_delay'])
-		//.input(audStream)
-		// use the 'flashvideo' preset (located in /lib/presets/flashvideo.js)
+	f
 		.on('end', () => {
-			console.log('file has been converted succesfully');
+			removeStream(vidStreams, newStream.id);
+			console.log(`Stream ${newStream.id} stopped`);
 		})
 		.on('error', (err) => {
-			console.log('an error happened: ' + err.message);
+			console.log(err.message);
+			removeStream(vidStreams, newStream.id);
+			console.log(`Stream ${newStream.id} stopped with error`);
 		})
-		//.mergeAdd(audStream)
 		.pipe(res, { end: true });
+
+	console.log(`Stream ${newStream.id} started`);
+	console.log(f._getArguments());
 });
 
 app.listen(4000);
