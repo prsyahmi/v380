@@ -1,0 +1,43 @@
+{
+	"extends": "tslint:recommended",
+	"rules": {
+		"array-type": [
+			true,
+			"array-simple"
+		],
+		"indent": [
+			true,
+			"tabs"
+		],
+		"variable-name": [
+			true,
+			"ban-keywords",
+			"check-format",
+			"allow-leading-underscore"
+		],
+		"max-line-length": false,
+		"no-var-keyword": true,
+		"no-eval": true,
+		"no-unsafe-finally": true,
+		"no-console": false,
+		"object-literal-sort-keys": false,
+		"ordered-imports": false,
+		"forin": false,
+		"quotemark": [
+			true,
+			"single",
+			"avoid-escape"
+		],
+		"triple-equals": [
+			true,
+			"allow-null-check"
+		]
+	},
+	"jsRules": {
+		"triple-equals": [
+			true,
+			"allow-null-check"
+		]
+	},
+	"defaultSeverity": "error"
+}

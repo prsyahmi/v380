@@ -1,0 +1,13 @@
+{
+	"editor.formatOnSave": true,
+	"editor.tabSize": 4,
+	"editor.insertSpaces": false,
+	"typescript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": false,
+	"files.exclude": {
+		"node_modules": true,
+		"build/": true,
+		"dist/": true,
+		"database/": true,
+		"logs/": true
+	}
+}

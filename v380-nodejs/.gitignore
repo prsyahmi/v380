@@ -1,0 +1,15 @@
+node_modules
+dist/
+typings
+typings.json
+config.json
+update/
+build/
+test/build
+logs
+*.log
+*.pem
+package-lock.json
+yarn.lock
+version.json
+dist

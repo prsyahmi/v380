@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "es2017",
+		"strict": true,
+		"allowJs": true,
+		"noImplicitAny": false,
+		"sourceMap": true,
+		"outDir": "build",
+		"noUnusedLocals": true,
+		"noUnusedParameters": false,
+		"incremental": false
+	},
+	"exclude": [
+		"node_modules",
+		"**/*.spec.ts",
+		"**/*.test.ts"
+	],
+	"include": [
+		"src/**/*.ts"
+	]
+}

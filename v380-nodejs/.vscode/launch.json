@@ -1,0 +1,45 @@
+{
+	// Use IntelliSense to learn about possible Node.js debug attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Launch process (ts-node-dev)",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": [
+				"run-script",
+				"dev2"
+			],
+			"restart": true,
+			"port": 5858,
+			"console": "integratedTerminal"
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Launch process (nodemon)",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": [
+				"run-script",
+				"dev"
+			],
+			"restart": true,
+			"port": 5858,
+			"console": "integratedTerminal"
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Process",
+			"protocol": "inspector",
+			"port": 5858,
+			"restart": true,
+			"outFiles": [
+				"${workspaceRoot}/build/**/*.js"
+			]
+		}
+	]
+}
