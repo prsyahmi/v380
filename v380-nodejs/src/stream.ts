@@ -187,6 +187,7 @@ app.get('/video/:filename', (req, res) => {
 		// input
 		.input(newStream.stream)
 		.withInputOption(['-vcodec h264', '-probesize 32', '-formatprobesize 0', '-avioflags direct', '-flags low_delay'])
+		.withInputFPS(fps)
 		.input(`http://localhost:${serverPort}/audio/stream.flv`)
 		// output
 		.format('flv')
