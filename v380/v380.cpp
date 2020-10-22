@@ -93,8 +93,11 @@ const uint8_t ptz_left[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe
 const uint8_t ptz_up[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0xeb, 0x03, 0x00, 0x00, 0x01, 0x00 };
 const uint8_t ptz_down[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0xec, 0x03, 0x00, 0x00, 0x01, 0x00 };
 const uint8_t send_cmd[] = { 0xaa, 0x00, 0x00, 0x00, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0xe8, 0x03, 0x00, 0x00, 0x01, 0x00 };
+const uint8_t light_on[] = { 0xc4, 0x00, 0x00, 0x00, 0xe9, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+const uint8_t light_off[] = { 0xc4, 0x00, 0x00, 0x00, 0xea, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+const uint8_t light_auto[] = { 0xc4, 0x00, 0x00, 0x00, 0xeb, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-bool readKey(bool& up, bool& down, bool& left, bool& right);
+bool readKey(bool& up, bool& down, bool& left, bool& right, int& light);
 
 
 std::string generateRandomPrintable(size_t len)
@@ -448,14 +451,26 @@ int main(int argc, const char* argv[])
 				}
 
 				bool up, dn, l, r;
-				if (enable_ptz && readKey(up, dn, l, r)) {
+				int light;
+				if (enable_ptz && readKey(up, dn, l, r, light)) {
 					ptzcmd[8] = 0xe8;
 					ptzcmd[10] = 0xe8;
 					if (up) ptzcmd[10] = 0xeb;
 					if (dn) ptzcmd[10] = 0xec;
 					if (l) ptzcmd[8] = 0xea;
 					if (r) ptzcmd[8] = 0xe9;
-					socketStream.Send(ptzcmd);
+
+					if (light != 0) {
+						if (light == -1) {
+							socketStream.Send(light_off, sizeof(light_off));
+						} else if (light == 1) {
+							socketStream.Send(light_on, sizeof(light_on));
+						} else if (light == 2) {
+							socketStream.Send(light_auto, sizeof(light_auto));
+						}
+					} else {
+						socketStream.Send(ptzcmd);
+					}
 				}
 			}
 		}
@@ -468,7 +483,7 @@ int main(int argc, const char* argv[])
     return 0;
 }
 
-bool readKey(bool& up, bool& down, bool& left, bool& right)
+bool readKey(bool& up, bool& down, bool& left, bool& right, int& light)
 {
 	bool ret = false;
 
@@ -476,6 +491,7 @@ bool readKey(bool& up, bool& down, bool& left, bool& right)
 	down = false;
 	left = false;
 	right = false;
+	light = 0;
 
 #ifdef _WIN32
 	if (GetForegroundWindow() == GetConsoleWindow())
@@ -498,6 +514,21 @@ bool readKey(bool& up, bool& down, bool& left, bool& right)
 		if ((GetAsyncKeyState(VK_DOWN) & 0x8000) != 0)
 		{
 			down = true;
+			ret = true;
+		}
+		if ((GetAsyncKeyState('I') & 0x8000) != 0)
+		{
+			light = 1;
+			ret = true;
+		}
+		if ((GetAsyncKeyState('O') & 0x8000) != 0)
+		{
+			light = -1;
+			ret = true;
+		}
+		if ((GetAsyncKeyState('P') & 0x8000) != 0)
+		{
+			light = 2;
 			ret = true;
 		}
 	}
