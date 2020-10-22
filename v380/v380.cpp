@@ -151,10 +151,11 @@ void GeneratePassword(std::vector<uint8_t>& output, const std::string& password)
 void printHelp(FILE* f)
 {
 	fprintf(f, "Usage example:\n");
-	fprintf(f, "  v380 -u admin -p password -port 8800 -ip 192.168.1.2\n");
+	fprintf(f, "  v380 -u admin -p password -port 8800 -addr 192.168.1.2\n");
 	fprintf(f, "  v380 -u admin -p password -port 8800 -mac aa:bb:cc:11:22:33\n");
 	fprintf(f, "  v380 -u admin -p password -port 8800 -id 123456789\n");
-	fprintf(f, "  v380 -p password -addr 192.168.1.2 | ffplay -vf \"setpts = N / (25 * TB)\" -i -\n");
+	fprintf(f, "  v380 -u admin -p password -port 8800 -id 123456789 -addr 192.168.1.2\n");
+	fprintf(f, "  v380 -p password -addr 192.168.1.2 | ffplay -vcodec h264 -probesize 32 -formatprobesize 0 -avioflags direct -flags low_delay -i -\n");
 	fprintf(f, "\n");
 	fprintf(f, "OPTIONS:\n");
 	fprintf(f, "  -u              username         (default admin)\n");
@@ -164,7 +165,9 @@ void printHelp(FILE* f)
 	fprintf(f, "  -id             camera ID\n");
 	fprintf(f, "  -port           camera port      (default 8800)\n");
 	fprintf(f, "  -retry          Number of connection attempt (default 5)\n");
+	fprintf(f, "  --light=        Initial light (0=off, 1=on, 2=auto)\n");
 	fprintf(f, "  --enable-ptz=0  Disable pan-tilt-zoom via keyboard press\n");
+	fprintf(f, "  --low-res       Use low resolution\n");
 	fprintf(f, "  --discover      Discover camera\n");
 	fprintf(f, "  -h              Show this help\n");
 }
@@ -180,6 +183,7 @@ int main(int argc, const char* argv[])
 	std::string username = "admin";
 	std::string password = "password";
 	int resolution = 1;
+	int light = -1;
 	bool enable_ptz = true;
 	bool show_help = false;
 	int retryCount = 5;
@@ -228,6 +232,18 @@ int main(int argc, const char* argv[])
 		else if ((_stricmp(argv[i], "--low-res") == 0))
 		{
 			resolution = 0;
+		}
+		else if ((_stricmp(argv[i], "--light=0") == 0))
+		{
+			light = 0;
+		}
+		else if ((_stricmp(argv[i], "--light=1") == 0))
+		{
+			light = 1;
+		}
+		else if ((_stricmp(argv[i], "--light=2") == 0))
+		{
+			light = 2;
 		}
 		else if ((_stricmp(argv[i], "-h") == 0) || (_stricmp(argv[i], "--help") == 0))
 		{
@@ -458,9 +474,20 @@ int main(int argc, const char* argv[])
 					fprintf(stderr, "Unknown 0x%02x command\n", hdr[0]);
 					break;
 				}
+				
+				if (light != -1) {
+					// Set initial light and from readKey
+					if (light == 0) {
+						socketStream.Send(light_off, sizeof(light_off));
+					} else if (light == 1) {
+						socketStream.Send(light_on, sizeof(light_on));
+					} else if (light == 2) {
+						socketStream.Send(light_auto, sizeof(light_auto));
+					}
+					light = -1;
+				}
 
 				bool up, dn, l, r;
-				int light;
 				if (enable_ptz && readKey(up, dn, l, r, light)) {
 					ptzcmd[8] = 0xe8;
 					ptzcmd[10] = 0xe8;
@@ -468,18 +495,8 @@ int main(int argc, const char* argv[])
 					if (dn) ptzcmd[10] = 0xec;
 					if (l) ptzcmd[8] = 0xea;
 					if (r) ptzcmd[8] = 0xe9;
-
-					if (light != 0) {
-						if (light == -1) {
-							socketStream.Send(light_off, sizeof(light_off));
-						} else if (light == 1) {
-							socketStream.Send(light_on, sizeof(light_on));
-						} else if (light == 2) {
-							socketStream.Send(light_auto, sizeof(light_auto));
-						}
-					} else {
-						socketStream.Send(ptzcmd);
-					}
+					
+					socketStream.Send(ptzcmd);
 				}
 			}
 		}
@@ -500,7 +517,7 @@ bool readKey(bool& up, bool& down, bool& left, bool& right, int& light)
 	down = false;
 	left = false;
 	right = false;
-	light = 0;
+	light = -1;
 
 #ifdef _WIN32
 	if (GetForegroundWindow() == GetConsoleWindow())
@@ -532,7 +549,7 @@ bool readKey(bool& up, bool& down, bool& left, bool& right, int& light)
 		}
 		if ((GetAsyncKeyState('O') & 0x8000) != 0)
 		{
-			light = -1;
+			light = 0;
 			ret = true;
 		}
 		if ((GetAsyncKeyState('P') & 0x8000) != 0)
