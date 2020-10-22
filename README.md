@@ -17,6 +17,8 @@ OPTIONS:
 ```
 
 # Usage example
+The camera can be connected either via -id, -addr or -mac. When specifying both -id and -addr, the software will skip discovering and connect straight to camera. Please specify both -id and -addr if the app have trouble discovering your camera.
+
 ### Connect by IP and feed it to ffplay
 `./v380 -u admin -p password -port 8800 -addr 192.168.1.2 | ffplay -vcodec h264 -probesize 32 -formatprobesize 0 -avioflags direct -flags low_delay -i -`
 ### Connect by id and feed it to ffplay
