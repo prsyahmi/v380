@@ -192,12 +192,12 @@ app.get('/video/:filename', (req, res) => {
 		// output
 		.format('flv')
 		.flvmeta()
-		.size(`${width}x${height}`)
-		.videoBitrate('512k')
-		.videoCodec('libx264')
-		// .videoCodec('copy')
+		// .size(`${width}x${height}`)
+		// .videoBitrate('512k')
+		// .videoCodec('libx264')
+		.videoCodec('copy')
 		.fps(fps)
-		//.noAudio()
+		// .noAudio()
 		.audioCodec('copy');
 
 	f
@@ -213,5 +213,5 @@ app.get('/video/:filename', (req, res) => {
 		.pipe(res, { end: true });
 
 	console.log(`Stream ${newStream.id} started`);
-	// console.log(f._getArguments());
+	console.log(f._getArguments());
 });
