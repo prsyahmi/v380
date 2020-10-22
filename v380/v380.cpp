@@ -22,7 +22,7 @@ struct TCommandReq {
 		struct {
 			uint32_t deviceId;   // 4:  +292
 			uint32_t unknown1;   // 8:  +284    = HSPI_V_StartPreview a4
-			uint16_t maybeFps;   // 12: hardcoded to 20
+			uint16_t requestFps; // 12: FPS, min=10, max=20 (default 20, invalid value will fall back to 13)
 			uint32_t authTicket; // 14: +304
 			uint32_t unknown3;   // 18: unused
 			uint32_t unknown4;   // 22: *(+344) == !0 + 4096 (v14 + 4096) "0x1001" audio related?
@@ -81,7 +81,7 @@ struct TLoginResp {
 struct TStreamLogin301 {
 	int32_t command; // 401
 	int32_t v21;
-	uint16_t maybeFps;
+	uint16_t fps;
 	uint32_t width;
 	uint32_t height;
 };
@@ -371,7 +371,7 @@ int main(int argc, const char* argv[])
 			req->command = 301; // stream login
 			req->u.streamLogin_lan.deviceId = stoi(id);
 			req->u.streamLogin_lan.unknown1 = 0;
-			req->u.streamLogin_lan.maybeFps = 20;   // hardcoded in HSPC_PreviewDLL.dll, maybe fps?
+			req->u.streamLogin_lan.requestFps = 20;
 			req->u.streamLogin_lan.authTicket = resp.authTicket;
 			req->u.streamLogin_lan.unknown4 = 4096 + 1; // not sure
 			req->u.streamLogin_lan.resolution = resolution;
@@ -428,7 +428,7 @@ int main(int argc, const char* argv[])
 
 					switch (type)
 					{
-					case 0x00:
+					case 0x00: // I-Frame
 						vframe.insert(vframe.end(), buf.begin(), buf.end());
 						if (curFrame == totalFrame - 1) {
 							fwrite(vframe.data(), 1, vframe.size(), stdout);
@@ -437,7 +437,7 @@ int main(int argc, const char* argv[])
 						}
 						break;
 
-					case 0x01:
+					case 0x01: // P-Frame
 						// Video
 						vframe.insert(vframe.end(), buf.begin(), buf.end());
 						if (curFrame == totalFrame - 1) {
