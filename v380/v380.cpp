@@ -278,10 +278,12 @@ int main(int argc, const char* argv[])
 			std::vector<uint8_t> buf;
 			std::vector<uint8_t> hdr;
 			std::vector<uint8_t> vframe;
+			std::vector<uint8_t> aframe;
 
 			buf.reserve(500);
 			hdr.reserve(12);
 			vframe.reserve(8192);
+			aframe.reserve(8192);
 
 			{
 				UtlDiscovery socketDiscovery;
@@ -431,12 +433,14 @@ int main(int argc, const char* argv[])
 
 					case 0x16:
 						// Audio
-						// sox -t ima -r 8000 -e ms-adpcm C:\Users\Syahmi\Desktop\v380\stream.adts -e signed-integer -b 16 out.wav
+						// sox -t ima -r 8000 -e ms-adpcm streamfile.raw -e signed-integer -b 16 out.wav
+						// ffmpeg -f s16le -ar 8000 -ac 1 -acodec adpcm_ima_ws streamfile.raw out.wav
 
-						//vframe.insert(vframe.end(), buf.begin(), buf.end());
-						//if (curFrame == totalFrame - 1) {
-						//	fwrite(vframe.data(), 1, vframe.size(), stdout);
-						//}
+						aframe.insert(aframe.end(), buf.begin(), buf.end());
+						if (curFrame == totalFrame - 1) {
+							// fwrite(aframe.data() + 20, 1, aframe.size() - 20, stdout);
+							aframe.clear();
+						}
 						break;
 					}
 

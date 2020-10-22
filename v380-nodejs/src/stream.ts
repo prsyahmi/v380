@@ -4,7 +4,6 @@ import * as express from 'express';
 import { Socket } from 'net';
 import * as t from 'typebase';
 import * as stream from 'stream';
-// import * as fs from 'fs';
 
 interface IStreamInfo {
 	id: number;
@@ -60,7 +59,6 @@ function streamChunk(sock: Socket, size: number): Promise<Buffer> {
 
 const vidStreams: IStreamInfo[] = [];
 const audStreams: IStreamInfo[] = [];
-
 function createStream(collections: IStreamInfo[]) {
 	const id = ++curId;
 	const strm = new stream.PassThrough();
@@ -132,7 +130,8 @@ export async function handleStream(packet: Buffer, sock: Socket) {
 			// Audio
 			audioPacketQueue.push(streamData);
 			if (streamPacket.curFrame === streamPacket.totalFrame - 1) {
-				const concatBuff = Buffer.concat(audioPacketQueue).slice(17);
+				// 20 bytes header
+				const concatBuff = Buffer.concat(audioPacketQueue).slice(20);
 				for (const s of audStreams) {
 					s.stream.write(concatBuff);
 				}
