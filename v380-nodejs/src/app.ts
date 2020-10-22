@@ -29,7 +29,7 @@ const streamLoginLanStruct = t.Struct.define([
 	['authTicket', t.ui32], // 14: +304
 	['unknown3', t.ui32],   // 18: unused
 	['unknown4', t.ui32],   // 22: *(+344) == !0 + 4096 (v14 + 4096) "0x1001" audio related?
-	['unknown5', t.ui32],   // 26: +288    = sound related?
+	['resolution', t.ui32], // 26: +288    = 0 = LowRes, 1 = HiRes
 	['unknown6', t.ui32],   // 30: unused
 ]);
 
@@ -232,7 +232,7 @@ function startStreaming(conf: IConfigFile, resp: any) {
 			maybeFps: 20, // hardcoded in HSPC_PreviewDLL.dll, maybe fps?
 			authTicket: resp.authTicket,
 			unknown4: 4096 + 1, // not sure (maybe audio buffer)
-			unknown5: 0,
+			resolution: 1,
 		}
 
 		streamLoginLanStruct.pack(streamLoginLanReq, streamLoginLanData);

@@ -26,7 +26,7 @@ struct TCommandReq {
 			uint32_t authTicket; // 14: +304
 			uint32_t unknown3;   // 18: unused
 			uint32_t unknown4;   // 22: *(+344) == !0 + 4096 (v14 + 4096) "0x1001" audio related?
-			uint32_t unknown5;   // 26: +288    = sound related?
+			uint32_t resolution; // 26: +288    = 0 = LowRes, 1 = HiRes
 			uint32_t unknown6;   // 30: unused
 		} streamLogin_lan;
 		struct {
@@ -179,6 +179,7 @@ int main(int argc, const char* argv[])
 	std::string port = "8800";
 	std::string username = "admin";
 	std::string password = "password";
+	int resolution = 1;
 	bool enable_ptz = true;
 	bool show_help = false;
 	int retryCount = 5;
@@ -223,6 +224,10 @@ int main(int argc, const char* argv[])
 		else if ((_stricmp(argv[i], "--enable-ptz=0") == 0))
 		{
 			enable_ptz = false;
+		}
+		else if ((_stricmp(argv[i], "--low-res") == 0))
+		{
+			resolution = 0;
 		}
 		else if ((_stricmp(argv[i], "-h") == 0) || (_stricmp(argv[i], "--help") == 0))
 		{
@@ -351,7 +356,7 @@ int main(int argc, const char* argv[])
 			req->u.streamLogin_lan.maybeFps = 20;   // hardcoded in HSPC_PreviewDLL.dll, maybe fps?
 			req->u.streamLogin_lan.authTicket = resp.authTicket;
 			req->u.streamLogin_lan.unknown4 = 4096 + 1; // not sure
-			req->u.streamLogin_lan.unknown5 = 0; // not sure
+			req->u.streamLogin_lan.resolution = resolution;
 
 			socketStream.Send(buf);
 			if (socketStream.Recv(buf, 412, 5000) < 16) {

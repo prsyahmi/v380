@@ -51,7 +51,7 @@ function streamChunk(sock: Socket, size: number): Promise<Buffer> {
 			if (data !== null) {
 				return resolve(data);
 			}
-			setImmediate(getChunk);
+			setTimeout(getChunk, 0);
 		};
 
 		getChunk();
@@ -94,10 +94,6 @@ export async function handleStream(packet: Buffer, sock: Socket) {
 		return;
 	}
 	const streamData = await streamChunk(sock, streamPacket.len);
-
-	if (packet.length === 1 && width && height) {
-		console.log(streamData);
-	}
 
 	switch (streamPacket.type) {
 		case 0x00: // Probably I-frame
