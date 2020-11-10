@@ -33,6 +33,9 @@
     <ClInclude Include="UtlDiscovery.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FlvStream.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -48,6 +51,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="UtlDiscovery.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FlvStream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

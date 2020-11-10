@@ -5,6 +5,7 @@
 #include "UtlSocket.h"
 #include "UtlDiscovery.h"
 #include "aes.h"
+#include "FlvStream.h"
 
 #pragma pack (push, 1)
 struct TCommandReq {
@@ -284,6 +285,16 @@ int main(int argc, const char* argv[])
 	_setmode(_fileno(stdout), O_BINARY);
 #endif
 
+	FlvStream flv;
+	flv.Init();
+
+	FILE* f1 = NULL;
+	FILE* f2 = NULL;
+	FILE* f3 = NULL;
+	fopen_s(&f1, "frame-key.bin", "wb");
+	fopen_s(&f2, "frame-intra.bin", "wb");
+	fopen_s(&f3, "frame-audio.bin", "wb");
+
 	while (retry++ < retryCount || retryCount == 0)
 	{
 		try
@@ -431,8 +442,14 @@ int main(int argc, const char* argv[])
 					case 0x00: // I-Frame
 						vframe.insert(vframe.end(), buf.begin(), buf.end());
 						if (curFrame == totalFrame - 1) {
-							fwrite(vframe.data(), 1, vframe.size(), stdout);
-							fflush(stdout);
+							flv.WriteVideo(vframe, true);
+							if (f1) {
+								fwrite(vframe.data(), vframe.size(), 1, f1);
+								fclose(f1);
+								f1 = NULL;
+							}
+							//fwrite(vframe.data(), 1, vframe.size(), stdout);
+							//fflush(stdout);
 							vframe.clear();
 						}
 						break;
@@ -441,8 +458,14 @@ int main(int argc, const char* argv[])
 						// Video
 						vframe.insert(vframe.end(), buf.begin(), buf.end());
 						if (curFrame == totalFrame - 1) {
-							fwrite(vframe.data(), 1, vframe.size(), stdout);
-							fflush(stdout);
+							flv.WriteVideo(vframe, false);
+							if (f2) {
+								fwrite(vframe.data(), vframe.size(), 1, f2);
+								fclose(f2);
+								f2 = NULL;
+							}
+							//fwrite(vframe.data(), 1, vframe.size(), stdout);
+							//fflush(stdout);
 							vframe.clear();
 						}
 						break;
@@ -454,7 +477,13 @@ int main(int argc, const char* argv[])
 
 						aframe.insert(aframe.end(), buf.begin(), buf.end());
 						if (curFrame == totalFrame - 1) {
+							flv.WriteAudio(aframe);
 							// fwrite(aframe.data() + 20, 1, aframe.size() - 20, stdout);
+							if (f3) {
+								fwrite(aframe.data(), aframe.size(), 1, f3);
+								fclose(f3);
+								f3 = NULL;
+							}
 							aframe.clear();
 						}
 						break;

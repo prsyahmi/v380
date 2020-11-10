@@ -168,7 +168,7 @@ app.get('/audio/:filename', (req, res) => {
 		})
 		.pipe(res, { end: true });
 
-	// console.log(f._getArguments());
+	console.log(f._getArguments());
 });
 
 app.get('/video/:filename', (req, res) => {
