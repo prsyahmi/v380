@@ -163,6 +163,7 @@ FlvStream::FlvStream()
 	, m_AudioTick(0)
 	, m_VideoCts(0)
 	, m_VideoPts(0)
+	, m_hFile(0)
 {
 }
 
@@ -176,11 +177,6 @@ FlvStream::~FlvStream()
 
 void FlvStream::Init()
 {
-	fopen_s(&m_hFile, "test.flv", "wb");
-	if (m_hFile == NULL) {
-		return;
-	}
-
 	TFlvHeader header;
 	header.Signature[0] = 'F';
 	header.Signature[1] = 'L';
@@ -192,10 +188,10 @@ void FlvStream::Init()
 	header.TypeFlagsVideo = 1;
 	header.DataOffset = bswap_u32(sizeof(TFlvHeader));
 
-	fwrite(&header, sizeof(TFlvHeader), 1, m_hFile);
+	fwrite(&header, 1, sizeof(TFlvHeader), stdout);
 
 	uint32_t prevTagSize = 0;
-	fwrite(&prevTagSize, sizeof(uint32_t), 1, m_hFile);
+	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
 
 	/*std::vector<uint8_t> vMetadata;
 	vMetadata.resize(sizeof(onMetadata));
@@ -206,17 +202,17 @@ void FlvStream::Init()
 	WriteDouble(vMetadata.data() + offsetAudioSampleRate, 8000);
 	WriteDouble(vMetadata.data() + offsetAudioSampleSize, 8000);
 	WriteDouble(vMetadata.data() + offsetAudioCodecId, 1);
-	fwrite(vMetadata.data(), vMetadata.size(), 1, m_hFile);
+	fwrite(vMetadata.data(), 1, vMetadata.size(), stdout);
 
 	prevTagSize = bswap_u32(vMetadata.size());
-	fwrite(&prevTagSize, sizeof(uint32_t), 1, m_hFile);*/
+	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);*/
 }
 
 void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 {
-	if (m_hFile == NULL) {
-		return;
-	}
+	//if (m_hFile == NULL) {
+	//	return;
+	//}
 
 	TFlvTag tag;
 	TFlvVideoData vidData;
@@ -233,7 +229,6 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	uint32_t timestamp = (m_VideoTick ? GetTickCount() - m_VideoTick : 0) + (frameN - m_VideoCts);// -(m_VideoPts ? GetTickCount() - m_VideoPts : 0);
 
 	timestamp = m_VideoTick ? (frameN - m_VideoCts) / 2 : 0;
-	printf("ts: %u, %u @ %u \n", timestamp, frameN - m_VideoCts, GetTickCount() - m_VideoTick);
 
 	StartBytes.resize(4);
 	StartBytes[3] = 1;
@@ -274,39 +269,43 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	tag.Timestamp.setSwap(timestamp);
 	tag.TimestampExtended = 0;
 	tag.StreamID.setSwap(0);
-	fwrite(&tag, sizeof(tag), 1, m_hFile);
+	fwrite(&tag, 1, sizeof(tag), stdout);
 
 	vidData.FrameType = keyframe ? 1 : 2;
 	vidData.CodecID = 7;
-	fwrite(&vidData, sizeof(vidData), 1, m_hFile);
+	fwrite(&vidData, 1, sizeof(vidData), stdout);
 
 	avc.AVCPacketType = 1;
 	avc.CompositionTime.setSwap(timestamp);
-	fwrite(&avc, sizeof(avc), 1, m_hFile);
+	fwrite(&avc, 1, sizeof(avc), stdout);
 
 	for (auto it = Nals.begin(); it != Nals.end(); it++) {
-		fwrite(it->data(), it->size(), 1, m_hFile);
+		fwrite(it->data(), 1, it->size(), stdout);
 	}
 
 	uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof(vidData) + sizeof(avc) + totalNalSize);
-	fwrite(&prevTagSize, sizeof(uint32_t), 1, m_hFile);
+	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
 
 	if (m_VideoTick == 0) {
 		m_VideoTick = GetTickCount();
 	}
 
 	m_VideoPts = GetTickCount();
+
+	fflush(stdout);
 }
 
 void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 {
-	if (m_hFile == NULL) {
-		return;
-	}
+	//if (m_hFile == NULL) {
+	//	return;
+	//}
 
 	TFlvTag tag;
 	TFlvAudioData audData;
 	std::vector<uint8_t> packetOnly(packet.begin() + 20, packet.end());
+
+	// There is no output format for ADPCM 8000hz, we need to convert it internally
 
 	uint32_t frameN = *(uint32_t*)(packet.data() + 8);
 	/*if (m_AudioTick == 0) {
@@ -318,20 +317,22 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	tag.Timestamp.setSwap(m_AudioTick ? GetTickCount() - m_AudioTick : 0);
 	tag.TimestampExtended = 0;
 	tag.StreamID.setSwap(0);
-	fwrite(&tag, sizeof(TFlvTag), 1, m_hFile);
+	fwrite(&tag, 1, sizeof(TFlvTag), stdout);
 
 	audData.SoundFormat = 1;
 	audData.SoundRate = 0;
 	audData.SoundSize = 0;
 	audData.SoundType = 0;
-	fwrite(&audData, sizeof(audData), 1, m_hFile);
+	fwrite(&audData, 1, sizeof(audData), stdout);
 
-	fwrite(packetOnly.data(), packetOnly.size(), 1, m_hFile);
+	fwrite(packetOnly.data(), 1, packetOnly.size(), stdout);
 
 	uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof (audData) + packetOnly.size());
-	fwrite(&prevTagSize, sizeof(uint32_t), 1, m_hFile);
+	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
 
 	if (m_AudioTick == 0) {
 		m_AudioTick = GetTickCount();
 	}
+
+	fflush(stdout);
 }

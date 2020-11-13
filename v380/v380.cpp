@@ -170,6 +170,9 @@ void printHelp(FILE* f)
 	fprintf(f, "  --enable-ptz=0  Disable pan-tilt-zoom via keyboard press\n");
 	fprintf(f, "  --low-res       Use low resolution\n");
 	fprintf(f, "  --discover      Discover camera\n");
+	fprintf(f, "  --output=video  Output a video\n");
+	fprintf(f, "  --output=audio  Output an audio (ADPCM 8000hz)\n");
+	fprintf(f, "  --output=flv    Uses flv as output, experimental\n");
 	fprintf(f, "  -h              Show this help\n");
 }
 
@@ -187,6 +190,7 @@ int main(int argc, const char* argv[])
 	int light = -1;
 	bool enable_ptz = true;
 	bool show_help = false;
+	int output_type = 0; // 0 = video, 1 = audio, 2 = flv
 	int retryCount = 5;
 
 	for (int i = 0; i < argc; i++)
@@ -246,6 +250,18 @@ int main(int argc, const char* argv[])
 		{
 			light = 2;
 		}
+		else if ((_stricmp(argv[i], "--output=video") == 0))
+		{
+			output_type = 0;
+		}
+		else if ((_stricmp(argv[i], "--output=audio") == 0))
+		{
+			output_type = 1;
+		}
+		else if ((_stricmp(argv[i], "--output=flv") == 0))
+		{
+			output_type = 2;
+		}
 		else if ((_stricmp(argv[i], "-h") == 0) || (_stricmp(argv[i], "--help") == 0))
 		{
 			show_help = true;
@@ -286,14 +302,6 @@ int main(int argc, const char* argv[])
 #endif
 
 	FlvStream flv;
-	flv.Init();
-
-	FILE* f1 = NULL;
-	FILE* f2 = NULL;
-	FILE* f3 = NULL;
-	fopen_s(&f1, "frame-key.bin", "wb");
-	fopen_s(&f2, "frame-intra.bin", "wb");
-	fopen_s(&f3, "frame-audio.bin", "wb");
 
 	while (retry++ < retryCount || retryCount == 0)
 	{
@@ -412,6 +420,10 @@ int main(int argc, const char* argv[])
 
 			buf.clear();
 
+			if (output_type == 2) {
+				flv.Init();
+			}
+
 			bool exitloop = false;
 			while (socketStream.Recv(hdr, 12, 5000) >= 12 && !exitloop)
 			{
@@ -442,14 +454,12 @@ int main(int argc, const char* argv[])
 					case 0x00: // I-Frame
 						vframe.insert(vframe.end(), buf.begin(), buf.end());
 						if (curFrame == totalFrame - 1) {
-							flv.WriteVideo(vframe, true);
-							if (f1) {
-								fwrite(vframe.data(), vframe.size(), 1, f1);
-								fclose(f1);
-								f1 = NULL;
+							if (output_type == 0) {
+								fwrite(vframe.data(), 1, vframe.size(), stdout);
+								fflush(stdout);
+							} else if (output_type == 2) {
+								flv.WriteVideo(vframe, true);
 							}
-							//fwrite(vframe.data(), 1, vframe.size(), stdout);
-							//fflush(stdout);
 							vframe.clear();
 						}
 						break;
@@ -458,14 +468,12 @@ int main(int argc, const char* argv[])
 						// Video
 						vframe.insert(vframe.end(), buf.begin(), buf.end());
 						if (curFrame == totalFrame - 1) {
-							flv.WriteVideo(vframe, false);
-							if (f2) {
-								fwrite(vframe.data(), vframe.size(), 1, f2);
-								fclose(f2);
-								f2 = NULL;
+							if (output_type == 0) {
+								fwrite(vframe.data(), 1, vframe.size(), stdout);
+								fflush(stdout);
+							} else if (output_type == 2) {
+								flv.WriteVideo(vframe, true);
 							}
-							//fwrite(vframe.data(), 1, vframe.size(), stdout);
-							//fflush(stdout);
 							vframe.clear();
 						}
 						break;
@@ -477,12 +485,11 @@ int main(int argc, const char* argv[])
 
 						aframe.insert(aframe.end(), buf.begin(), buf.end());
 						if (curFrame == totalFrame - 1) {
-							flv.WriteAudio(aframe);
-							// fwrite(aframe.data() + 20, 1, aframe.size() - 20, stdout);
-							if (f3) {
-								fwrite(aframe.data(), aframe.size(), 1, f3);
-								fclose(f3);
-								f3 = NULL;
+							if (output_type == 0) {
+								fwrite(aframe.data() + 20, 1, aframe.size() - 20, stdout);
+								fflush(stdout);
+							} else if (output_type == 2) {
+								flv.WriteAudio(aframe);
 							}
 							aframe.clear();
 						}
