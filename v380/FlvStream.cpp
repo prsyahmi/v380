@@ -115,6 +115,35 @@ struct TFlvAvcVideoPacket
 	// Followed by VideoData
 };
 
+struct TNalHeader
+{
+	uint8_t nal_unit_type : 5;
+	uint8_t nal_ref_idc : 2;
+	uint8_t forbidden_zero_bit : 1;
+};
+
+struct TParameterSets
+{
+	uint16_t parameterSetLength;
+	// uint8_t * parameterSetLength = Data...
+};
+
+struct TAVCDecoderConfigurationRecord
+{
+	uint8_t configurationVersion; // 1
+	uint8_t AVCProfileIndication;
+	uint8_t profile_compatibility;
+	uint8_t AVCLevelIndication;
+	// bit(6) reserved = '111111'b;
+	uint8_t lengthSizeMinusOne : 2;
+	uint8_t reserved : 6;
+	uint8_t numOfSequenceParameterSets : 5;
+	uint8_t reserved2 : 3;
+	// TParameterSets sps;
+	// uint8_t numOfPictureParameterSets;
+	// TParameterSets pps;
+};
+
 #pragma pack (pop)
 
 uint8_t onMetadata[304] = {
@@ -219,6 +248,9 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	TFlvAvcVideoPacket avc;
 
 	std::vector<std::vector<uint8_t>> Nals;
+	std::vector<std::vector<uint8_t>> SPSs;
+	std::vector<std::vector<uint8_t>> PPSs;
+	uint32_t paramSetsSize = 0;
 	std::vector<uint8_t> StartBytes;
 
 	uint32_t frameN = *(uint32_t*)(packet.data() + 8);
@@ -238,28 +270,95 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	size_t totalNalSize = 0;
 	do {
 		auto it = std::search(
-			std::begin(packet) + (prevOffset ? prevOffset + 4 : 0), std::end(packet),
+			std::begin(packet) + (prevOffset ? prevOffset : 0), std::end(packet),
 			std::begin(StartBytes), std::end(StartBytes));
 
 		endOfSearch = it == packet.end();
 		size_t curOffset = endOfSearch ? packet.size() : std::distance(std::begin(packet), it);
 		if (prevOffset) {
-			// Create 4 bytes NAL header
-			// 4 bytes NAL size
+			// Create NAL unit from byte stream with boundary
+			// Consists of:
+			//    unit size (uint32_t)
+			//    NAL headers
+			//    data
 			std::vector<uint8_t> nal;
-
 			uint32_t nalSize = bswap_u32(curOffset - prevOffset);
-			nal.resize(4);
-			*(uint32_t*)nal.data() = nalSize;
-			nal.insert(nal.end(), packet.begin() + prevOffset, packet.begin() + curOffset);
+			TNalHeader* nalHeader = (TNalHeader*)(packet.data() + prevOffset);
 
-			Nals.push_back(nal);
-			totalNalSize += nal.size();
+			if (nalHeader->forbidden_zero_bit == 0) {
+				if (nalHeader->nal_unit_type == 7) {
+					// SPS
+					nal.insert(nal.end(), packet.begin() + prevOffset, packet.begin() + curOffset);
+					SPSs.push_back(nal);
+					paramSetsSize += nal.size();
+				} else if (nalHeader->nal_unit_type == 8) {
+					// PPS
+					nal.insert(nal.end(), packet.begin() + prevOffset, packet.begin() + curOffset);
+					PPSs.push_back(nal);
+					paramSetsSize += nal.size();
+				} else {
+					nal.resize(4);
+					*(uint32_t*)nal.data() = nalSize;
+					nal.insert(nal.end(), packet.begin() + prevOffset, packet.begin() + curOffset);
+
+					Nals.push_back(nal);
+					totalNalSize += nal.size();
+				}
+			}
 		}
 
-		// Include boundary
-		prevOffset = curOffset;// +4;
+		prevOffset = curOffset + 4; // Not Include boundary
+		//prevOffset = curOffset; // Include boundary
 	} while (!endOfSearch);
+
+	if (SPSs.size() || PPSs.size())
+	{
+		// Write AVCDecoderConfigurationRecord first
+		std::vector<uint8_t> AvcDcrData;
+		TAVCDecoderConfigurationRecord* dcr;
+
+		AvcDcrData.resize(sizeof(TAVCDecoderConfigurationRecord) + (SPSs.size() * sizeof(uint16_t) + 8 + PPSs.size() * sizeof(uint16_t) + paramSetsSize));
+		uint8_t* pDcr = (uint8_t*)(AvcDcrData.data() + sizeof(TAVCDecoderConfigurationRecord));
+
+		dcr = (TAVCDecoderConfigurationRecord*)AvcDcrData.data();
+		dcr->configurationVersion = 1;
+		dcr->AVCProfileIndication = 77;
+		dcr->profile_compatibility = 0;
+		dcr->AVCLevelIndication = 15;
+		dcr->lengthSizeMinusOne = 3;
+		dcr->numOfSequenceParameterSets = SPSs.size();
+		for (auto sps : SPSs) {
+			*(uint16_t*)pDcr = bswap_u16((uint16_t)sps.size());
+			pDcr += sizeof(uint16_t);
+			memcpy_s(pDcr, sps.size(), sps.data(), sps.size());
+			pDcr += sps.size();
+		}
+		*(uint8_t*)pDcr = (uint8_t)PPSs.size();
+		pDcr += sizeof(uint8_t);
+		for (auto pps : PPSs) {
+			*(uint16_t*)pDcr = bswap_u16((uint16_t)pps.size());
+			pDcr += sizeof(uint16_t);
+			memcpy_s(pDcr, pps.size(), pps.data(), pps.size());
+			pDcr += pps.size();
+		}
+
+		tag.TagType = 9; // video;
+		tag.DataSize.setSwap(sizeof(vidData) + sizeof(avc) + AvcDcrData.size());
+		tag.Timestamp.setSwap(0);
+		tag.TimestampExtended = 0;
+		tag.StreamID.setSwap(0);
+		fwrite(&tag, 1, sizeof(tag), stdout);
+		vidData.FrameType = 1;
+		vidData.CodecID = 7;
+		fwrite(&vidData, 1, sizeof(vidData), stdout);
+		avc.AVCPacketType = 0;
+		avc.CompositionTime.setSwap(0);
+		fwrite(&avc, 1, sizeof(avc), stdout);
+		fwrite(AvcDcrData.data(), 1, AvcDcrData.size(), stdout);
+
+		uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof(vidData) + sizeof(avc) + AvcDcrData.size());
+		fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
+	}
 
 	// Not sure yet how to construct timestamp and compositionTime
 	// https://stackoverflow.com/questions/7054954/the-composition-timects-when-wrapping-h-264-nalus
