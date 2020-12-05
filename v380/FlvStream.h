@@ -25,7 +25,6 @@ private:
 
 	bool m_Exit;
 	std::thread m_Thread;
-	std::mutex m_Mutex;
 	Semaphore m_Semaphore;
 	std::deque<TQueue> m_PacketQueue;
 

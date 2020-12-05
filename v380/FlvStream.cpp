@@ -214,7 +214,7 @@ FlvStream::FlvStream()
 			}
 
 			while (packetQueue.size()) {
-				TQueue& q = packetQueue.front();
+				const TQueue& q = packetQueue.front();
 				if (q.m_Type == eQueueType_Video) {
 					WriteVideo(q.m_Packet, false);
 				} else if (q.m_Type == eQueueType_VideoKeyFrame) {
@@ -284,12 +284,12 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	}
 
 	if (m_Thread.get_id() != std::this_thread::get_id()) {
-		//std::lock_guard<std::mutex> lg(m_Mutex);
 		m_PacketQueue.push_back({
-			keyframe ? eQueueType_VideoKeyFrame : eQueueType_Video,
+			(keyframe ? eQueueType_VideoKeyFrame : eQueueType_Video),
 			packet
 		});
 		m_Semaphore.notify();
+		return;
 	}
 
 	TFlvTag tag;
@@ -458,12 +458,12 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	}
 
 	if (m_Thread.get_id() != std::this_thread::get_id()) {
-		//std::lock_guard<std::mutex> lg(m_Mutex);
 		m_PacketQueue.push_back({
 			eQueueType_Audio,
 			packet
 		});
 		m_Semaphore.notify();
+		return;
 	}
 
 	TFlvTag tag;
