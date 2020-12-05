@@ -173,6 +173,8 @@ void printHelp(FILE* f)
 	fprintf(f, "  --output=video  Output a video\n");
 	fprintf(f, "  --output=audio  Output an audio (ADPCM 8000hz)\n");
 	fprintf(f, "  --output=flv    Uses flv as output, experimental\n");
+	fprintf(f, "  --no-video      FLV: disable video output\n");
+	fprintf(f, "  --no-audio      FLT: disable audio output\n");
 	fprintf(f, "  -h              Show this help\n");
 }
 
@@ -192,6 +194,8 @@ int main(int argc, const char* argv[])
 	bool show_help = false;
 	int output_type = 0; // 0 = video, 1 = audio, 2 = flv
 	int retryCount = 5;
+	bool enable_video = true;
+	bool enable_audio = true;
 
 	for (int i = 0; i < argc; i++)
 	{
@@ -261,6 +265,14 @@ int main(int argc, const char* argv[])
 		else if ((_stricmp(argv[i], "--output=flv") == 0))
 		{
 			output_type = 2;
+		}
+		else if ((_stricmp(argv[i], "--no-audio") == 0))
+		{
+			enable_audio = false;
+		}
+		else if ((_stricmp(argv[i], "--no-video") == 0))
+		{
+			enable_video = false;
 		}
 		else if ((_stricmp(argv[i], "-h") == 0) || (_stricmp(argv[i], "--help") == 0))
 		{
@@ -421,7 +433,7 @@ int main(int argc, const char* argv[])
 			buf.clear();
 
 			if (output_type == 2) {
-				flv.Init(true, true);
+				flv.Init(enable_video, enable_audio);
 			}
 
 			bool exitloop = false;
