@@ -195,9 +195,8 @@ void WriteDouble(uint8_t* offset, double value)
 }
 
 FlvStream::FlvStream()
-	: m_VideoTick(0)
-	, m_AudioTick(0)
-	, m_VideoCts(0)
+	: m_AudioTick(0)
+	, m_VideoDts(0)
 	, m_VideoPts(0)
 	, m_hFile(0)
 	, m_LastVideoTick(0)
@@ -270,8 +269,25 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	uint32_t paramSetsSize = 0;
 	std::vector<uint8_t> StartBytes;
 
-	uint32_t frameN = *(uint32_t*)(packet.data() + 8);
-	uint32_t timestamp = m_VideoTick ? GetTickCount() - m_VideoTick : 0;
+	uint32_t dts = *(uint32_t*)(packet.data() + 0);
+	uint32_t pts = *(uint32_t*)(packet.data() + 8);
+	uint32_t unk0 = *(uint32_t*)(packet.data() + 4);
+	uint32_t unk1 = *(uint32_t*)(packet.data() + 12);
+	uint32_t unk2 = *(uint32_t*)(packet.data() + 16);
+	uint32_t unk3 = *(uint32_t*)(packet.data() + 20);
+
+	//uint32_t timestamp = m_VideoDts ? dts - m_VideoDts : 0;
+	//uint32_t cts = m_VideoPts ? (pts - m_VideoPts) : 0;
+	uint32_t cts = m_VideoDts ? dts - m_VideoDts : 0;
+	uint32_t timestamp = m_VideoPts ? (pts - m_VideoPts) : 0;
+
+	if (m_VideoDts == 0) {
+		m_VideoDts = dts;
+		m_VideoPts = pts;
+	}
+
+	//fprintf(stderr, "dts=%08d, pts=%08d, ts=%08d, cts=%08d | unk0=%08d unk1=%08d unk2=%08X size=%08d\n",
+	//	dts, pts, timestamp, cts, unk0, unk1, unk2, packet.size());
 
 	StartBytes.resize(4);
 	StartBytes[3] = 1;
@@ -386,7 +402,7 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	fwrite(&vidData, 1, sizeof(vidData), stdout);
 
 	avc.AVCPacketType = 1;
-	avc.CompositionTime.setSwap(0);
+	avc.CompositionTime.setSwap(cts);
 	fwrite(&avc, 1, sizeof(avc), stdout);
 
 	for (auto it = Nals.begin(); it != Nals.end(); it++) {
@@ -395,12 +411,6 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 
 	uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof(vidData) + sizeof(avc) + totalNalSize);
 	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
-
-	if (m_VideoTick == 0) {
-		m_VideoTick = GetTickCount();
-	}
-
-	m_VideoPts = GetTickCount();
 
 	fflush(stdout);
 }
@@ -431,7 +441,7 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 
 	tag.TagType = 8; // audio;
 	tag.DataSize.setSwap(sizeof(audData) + nPcmData);
-	tag.Timestamp.setSwap(m_AudioTick ? GetTickCount() - m_VideoTick : 0);
+	tag.Timestamp.setSwap(m_AudioTick ? GetTickCount() - m_AudioTick : 0);
 	tag.TimestampExtended = 0;
 	tag.StreamID.setSwap(0);
 	fwrite(&tag, 1, sizeof(TFlvTag), stdout);
