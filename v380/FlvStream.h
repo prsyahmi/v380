@@ -4,12 +4,11 @@ class FlvStream
 {
 private:
 	FILE* m_hFile;
-	DWORD m_VideoTick;
-	DWORD m_AudioTick;
-	DWORD m_VideoCts;
-	DWORD m_VideoPts;
-	DWORD m_LastVideoTick;
-	bool m_WrittenAudio;
+	uint32_t m_VideoTick;
+	uint32_t m_AudioTick;
+	uint32_t m_VideoCts;
+	uint32_t m_VideoPts;
+	uint32_t m_LastVideoTick;
 
 public:
 	FlvStream();
