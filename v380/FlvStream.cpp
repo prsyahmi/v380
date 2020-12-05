@@ -204,6 +204,7 @@ FlvStream::FlvStream()
 	, m_LastTimestamp(0)
 	, m_EnableVideo(false)
 	, m_EnableAudio(false)
+	, m_Inited(false)
 	, m_Exit(false)
 {
 	m_Thread = std::thread([&]() {
@@ -247,6 +248,11 @@ FlvStream::~FlvStream()
 void FlvStream::Init(bool enableVideo, bool enableAudio)
 {
 	TFlvHeader header;
+
+	if (m_Inited) {
+		return;
+	}
+	m_Inited = true;
 
 	m_EnableVideo = enableVideo;
 	m_EnableAudio = enableAudio;

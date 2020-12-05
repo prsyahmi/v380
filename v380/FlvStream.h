@@ -24,6 +24,7 @@ private:
 	bool m_EnableVideo;
 	bool m_EnableAudio;
 
+	bool m_Inited;
 	bool m_Exit;
 	std::thread m_Thread;
 	Semaphore m_Semaphore;

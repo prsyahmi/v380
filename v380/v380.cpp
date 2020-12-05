@@ -547,6 +547,8 @@ int main(int argc, const char* argv[])
 					socketStream.Send(ptzcmd);
 				}
 			}
+			
+			fprintf(stderr, "Stream stopped, restarting stream\n");
 		}
 		catch (const std::exception& ex)
 		{
