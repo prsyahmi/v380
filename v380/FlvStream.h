@@ -9,12 +9,14 @@ private:
 	uint32_t m_VideoCts;
 	uint32_t m_VideoPts;
 	uint32_t m_LastVideoTick;
+	bool m_EnableVideo;
+	bool m_EnableAudio;
 
 public:
 	FlvStream();
 	~FlvStream();
 
-	void Init();
+	void Init(bool enableVideo, bool enableAudio);
 	void WriteVideo(const std::vector<uint8_t>& packet, bool keyframe);
 	void WriteAudio(const std::vector<uint8_t>& packet);
 };

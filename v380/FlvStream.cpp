@@ -201,6 +201,8 @@ FlvStream::FlvStream()
 	, m_VideoPts(0)
 	, m_hFile(0)
 	, m_LastVideoTick(0)
+	, m_EnableVideo(false)
+	, m_EnableAudio(false)
 {
 }
 
@@ -212,17 +214,21 @@ FlvStream::~FlvStream()
 	}
 }
 
-void FlvStream::Init()
+void FlvStream::Init(bool enableVideo, bool enableAudio)
 {
 	TFlvHeader header;
+
+	m_EnableVideo = enableVideo;
+	m_EnableAudio = enableAudio;
+
 	header.Signature[0] = 'F';
 	header.Signature[1] = 'L';
 	header.Signature[2] = 'V';
 	header.Version = 1;
 	header.TypeFlagsReserved = 0;
-	header.TypeFlagsAudio = 1;
+	header.TypeFlagsAudio = enableAudio ? 1 : 0;
 	header.TypeFlagsReserved2 = 0;
-	header.TypeFlagsVideo = 1;
+	header.TypeFlagsVideo = m_EnableVideo ? 1 : 0;
 	header.DataOffset = bswap_u32(sizeof(TFlvHeader));
 
 	fwrite(&header, 1, sizeof(TFlvHeader), stdout);
@@ -247,6 +253,9 @@ void FlvStream::Init()
 
 void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 {
+	if (!m_EnableVideo) {
+		return;
+	}
 	//if (m_hFile == NULL) {
 	//	return;
 	//}
@@ -401,6 +410,10 @@ int adpcm_decoder(int a1, char *a2, int16_t *a3, int a4, int a5);
 
 void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 {
+	if (!m_EnableAudio) {
+		return;
+	}
+
 	//if (m_hFile == NULL) {
 	//	return;
 	//}
