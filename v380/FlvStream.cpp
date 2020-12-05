@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "FlvStream.h"
 
+// https://mradionov.github.io/h264-bitstream-viewer/
+
 #ifdef _WIN32
 #define bswap_u16 _byteswap_ushort
 #define bswap_u32 _byteswap_ulong
@@ -237,6 +239,7 @@ FlvStream::~FlvStream()
 	}
 
 	m_Exit = true;
+	m_Semaphore.notify();
 	if (m_Thread.joinable()) m_Thread.join();
 }
 
@@ -262,7 +265,7 @@ void FlvStream::Init(bool enableVideo, bool enableAudio)
 	uint32_t prevTagSize = 0;
 	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
 
-	/*std::vector<uint8_t> vMetadata;
+	std::vector<uint8_t> vMetadata;
 	vMetadata.resize(sizeof(onMetadata));
 	memcpy_s(vMetadata.data(), vMetadata.size(), onMetadata, sizeof(onMetadata));
 
@@ -271,10 +274,11 @@ void FlvStream::Init(bool enableVideo, bool enableAudio)
 	WriteDouble(vMetadata.data() + offsetAudioSampleRate, 8000);
 	WriteDouble(vMetadata.data() + offsetAudioSampleSize, 8000);
 	WriteDouble(vMetadata.data() + offsetAudioCodecId, 1);
+	WriteDouble(vMetadata.data() + offsetDuration, 0);
 	fwrite(vMetadata.data(), 1, vMetadata.size(), stdout);
 
 	prevTagSize = bswap_u32(vMetadata.size());
-	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);*/
+	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
 }
 
 void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
@@ -302,22 +306,22 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	uint32_t paramSetsSize = 0;
 	std::vector<uint8_t> StartBytes;
 
-	uint32_t dts = *(uint32_t*)(packet.data() + 0);
-	uint32_t pts = *(uint32_t*)(packet.data() + 8);
+	uint32_t rdts = *(uint32_t*)(packet.data() + 0);
+	uint32_t rpts = *(uint32_t*)(packet.data() + 8);
 	uint32_t unk0 = *(uint32_t*)(packet.data() + 4);
 	uint32_t unk1 = *(uint32_t*)(packet.data() + 12);
 	uint32_t unk2 = *(uint32_t*)(packet.data() + 16);
 	uint32_t unk3 = *(uint32_t*)(packet.data() + 20);
 
-	//uint32_t timestamp = m_VideoDts ? dts - m_VideoDts : 0;
-	//uint32_t cts = m_VideoPts ? (pts - m_VideoPts) : 0;
-	uint32_t cts = m_VideoDts ? dts - m_VideoDts : 0;
-	uint32_t timestamp = m_VideoPts ? (pts - m_VideoPts) : 0;
-
+	uint32_t dts = m_VideoDts ? rdts - m_VideoDts : 0;
+	uint32_t pts = m_VideoPts ? rpts - m_VideoPts : 0;
 	if (m_VideoDts == 0) {
-		m_VideoDts = dts;
-		m_VideoPts = pts;
+		m_VideoDts = rdts;
+		m_VideoPts = rpts;
 	}
+
+	uint32_t timestamp = pts;
+	uint32_t cts = 0;
 
 	//fprintf(stderr, "dts=%08d, pts=%08d, ts=%08d, cts=%08d | unk0=%08d unk1=%08d unk2=%08X size=%08d\n",
 	//	dts, pts, timestamp, cts, unk0, unk1, unk2, packet.size());
