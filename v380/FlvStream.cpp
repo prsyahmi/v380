@@ -181,6 +181,12 @@ const uint32_t offsetAudioStereo = 233; //u8
 const uint32_t offsetAudioCodecId = 249;
 const uint32_t offsetFilesize = 293;
 
+
+const uint16_t ADAPTATION_TABLE[] = {
+	230, 230, 230, 230, 307, 409, 512, 614,
+		768, 614, 512, 409, 307, 230, 230, 230,
+};
+
 void WriteDouble(uint8_t* offset, double value)
 {
 	uint64_t n = *(uint64_t*)&value;
@@ -193,6 +199,8 @@ FlvStream::FlvStream()
 	, m_VideoCts(0)
 	, m_VideoPts(0)
 	, m_hFile(0)
+	, m_LastVideoTick(0)
+	, m_WrittenAudio(false)
 {
 }
 
@@ -260,7 +268,8 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 
 	uint32_t timestamp = (m_VideoTick ? GetTickCount() - m_VideoTick : 0) + (frameN - m_VideoCts);// -(m_VideoPts ? GetTickCount() - m_VideoPts : 0);
 
-	timestamp = m_VideoTick ? (frameN - m_VideoCts) / 2 : 0;
+	timestamp = m_VideoTick ? GetTickCount() - m_VideoTick : 0;//m_VideoTick ? (frameN - m_VideoCts) / 2 : 0;
+	m_LastVideoTick = timestamp;
 
 	StartBytes.resize(4);
 	StartBytes[3] = 1;
@@ -375,7 +384,7 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	fwrite(&vidData, 1, sizeof(vidData), stdout);
 
 	avc.AVCPacketType = 1;
-	avc.CompositionTime.setSwap(timestamp);
+	avc.CompositionTime.setSwap(0);
 	fwrite(&avc, 1, sizeof(avc), stdout);
 
 	for (auto it = Nals.begin(); it != Nals.end(); it++) {
@@ -392,7 +401,19 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	m_VideoPts = GetTickCount();
 
 	fflush(stdout);
+
+	if (!m_WrittenAudio) {
+		std::vector<uint8_t> vvv;
+		vvv.resize(272);
+		//WriteAudio(vvv);
+	}
+
+	m_WrittenAudio = false;
 }
+
+
+int adpcm_decoder(int a1, char *a2, int16_t *a3, int a4, int a5);
+int adpcm_decode_block(int16_t *outbuf, const uint8_t *inbuf, size_t inbufsize, int channels);
 
 void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 {
@@ -403,8 +424,24 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	TFlvTag tag;
 	TFlvAudioData audData;
 	std::vector<uint8_t> packetOnly(packet.begin() + 20, packet.end());
+	std::vector<int16_t> pcmData;
+
+	pcmData.resize(1024);
 
 	// There is no output format for ADPCM 8000hz, we need to convert it internally
+	int nPcmData = adpcm_decoder(0, (char *)packetOnly.data(), pcmData.data(), 505, 1);
+	// nPcmData = pcmData.size();
+
+	// int nPcmData = adpcm_decode_block(pcmData.data(), packetOnly.data(), packetOnly.size(), 1);
+
+	char out[256];
+	int nOut = sprintf_s(out, "Audio %u\n", nPcmData);
+	fwrite(out, 1, nOut, stderr);
+
+	if (nPcmData == 0) {
+	//	return;
+	}
+	nPcmData = 512;
 
 	uint32_t frameN = *(uint32_t*)(packet.data() + 8);
 	/*if (m_AudioTick == 0) {
@@ -412,21 +449,25 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	}*/
 
 	tag.TagType = 8; // audio;
-	tag.DataSize.setSwap(sizeof(audData) + packetOnly.size());
-	tag.Timestamp.setSwap(m_AudioTick ? GetTickCount() - m_AudioTick : 0);
+	tag.DataSize.setSwap(sizeof(audData) + nPcmData);
+	tag.Timestamp.setSwap(m_AudioTick ? GetTickCount() - m_VideoTick : 0);
 	tag.TimestampExtended = 0;
 	tag.StreamID.setSwap(0);
 	fwrite(&tag, 1, sizeof(TFlvTag), stdout);
 
-	audData.SoundFormat = 1;
-	audData.SoundRate = 0;
-	audData.SoundSize = 0;
+	// Format 3: linear PCM, stores raw PCM samples.
+	// If the data is 8 - bit, the samples are unsigned bytes.
+	// If the data is 16 - bit, the samples are stored as little endian, signed numbers.
+	// If the data is stereo, left and right samples are stored interleaved : left - right - left - right - and so on.
+	audData.SoundFormat = 3; 
+	audData.SoundRate = 1;
+	audData.SoundSize = 1;
 	audData.SoundType = 0;
 	fwrite(&audData, 1, sizeof(audData), stdout);
 
-	fwrite(packetOnly.data(), 1, packetOnly.size(), stdout);
+	fwrite(pcmData.data(), 1, nPcmData, stdout);
 
-	uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof (audData) + packetOnly.size());
+	uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof (audData) + nPcmData);
 	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
 
 	if (m_AudioTick == 0) {
@@ -434,4 +475,363 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	}
 
 	fflush(stdout);
+
+	m_WrittenAudio = true;
+}
+
+//adpcm_decoder(0, (char *)v5, v14, 505, 1);
+
+const uint32_t asc_E5F0[] = {
+	0x07, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00,
+	0x0B, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x0D, 0x00, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x00,
+	0x10, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x00, 0x13, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x00,
+	0x17, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 0x1C, 0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00,
+	0x22, 0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x00, 0x29, 0x00, 0x00, 0x00, 0x2D, 0x00, 0x00, 0x00,
+	0x32, 0x00, 0x00, 0x00, 0x37, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00,
+	0x49, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00, 0x61, 0x00, 0x00, 0x00,
+	0x6B, 0x00, 0x00, 0x00, 0x76, 0x00, 0x00, 0x00, 0x82, 0x00, 0x00, 0x00, 0x8F, 0x00, 0x00, 0x00,
+	0x9D, 0x00, 0x00, 0x00, 0xAD, 0x00, 0x00, 0x00, 0xBE, 0x00, 0x00, 0x00, 0xD1, 0x00, 0x00, 0x00,
+	0xE6, 0x00, 0x00, 0x00, 0xFD, 0x00, 0x00, 0x00, 0x17, 0x01, 0x00, 0x00, 0x33, 0x01, 0x00, 0x00,
+	0x51, 0x01, 0x00, 0x00, 0x73, 0x01, 0x00, 0x00, 0x98, 0x01, 0x00, 0x00, 0xC1, 0x01, 0x00, 0x00,
+	0xEE, 0x01, 0x00, 0x00, 0x20, 0x02, 0x00, 0x00, 0x56, 0x02, 0x00, 0x00, 0x92, 0x02, 0x00, 0x00,
+	0xD4, 0x02, 0x00, 0x00, 0x1C, 0x03, 0x00, 0x00, 0x6C, 0x03, 0x00, 0x00, 0xC3, 0x03, 0x00, 0x00,
+	0x24, 0x04, 0x00, 0x00, 0x8E, 0x04, 0x00, 0x00, 0x02, 0x05, 0x00, 0x00, 0x83, 0x05, 0x00, 0x00,
+	0x10, 0x06, 0x00, 0x00, 0xAB, 0x06, 0x00, 0x00, 0x56, 0x07, 0x00, 0x00, 0x12, 0x08, 0x00, 0x00,
+	0xE0, 0x08, 0x00, 0x00, 0xC3, 0x09, 0x00, 0x00, 0xBD, 0x0A, 0x00, 0x00, 0xD0, 0x0B, 0x00, 0x00
+};
+
+const uint32_t dword_E6F0[] = {
+	0xFF, 0x0C, 0x00, 0x00, 0x4C, 0x0E, 0x00, 0x00, 0xBA, 0x0F, 0x00, 0x00, 0x4C, 0x11, 0x00, 0x00,
+	0x07, 0x13, 0x00, 0x00, 0xEE, 0x14, 0x00, 0x00, 0x06, 0x17, 0x00, 0x00, 0x54, 0x19, 0x00, 0x00,
+	0xDC, 0x1B, 0x00, 0x00, 0xA5, 0x1E, 0x00, 0x00, 0xB6, 0x21, 0x00, 0x00, 0x15, 0x25, 0x00, 0x00,
+	0xCA, 0x28, 0x00, 0x00, 0xDF, 0x2C, 0x00, 0x00, 0x5B, 0x31, 0x00, 0x00, 0x4B, 0x36, 0x00, 0x00,
+	0xB9, 0x3B, 0x00, 0x00, 0xB2, 0x41, 0x00, 0x00, 0x44, 0x48, 0x00, 0x00, 0x7E, 0x4F, 0x00, 0x00,
+	0x71, 0x57, 0x00, 0x00, 0x2F, 0x60, 0x00, 0x00, 0xCE, 0x69, 0x00, 0x00, 0x62, 0x74, 0x00, 0x00,
+	0xFF, 0x7F, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	0xFF, 0xFF, 0xFF, 0xFF, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00
+};
+
+int alaw_compress(int16_t a1)
+{
+	int16_t v1; // r3
+	int16_t v2; // r3
+	int16_t v3; // r1
+	int16_t v4; // r3
+	int16_t v5; // r2
+	int v6; // r2
+	unsigned __int8 v8; // [sp+6h] [bp-2h]
+
+	v1 = a1 >> 2;
+	if (a1 < 0)
+		v1 = ~a1 >> 2;
+	v2 = (v1 + 33) & 0xFFFF;
+	if (v2 > 0x1FFF)
+		v2 = 0x1FFF;
+	v3 = v2;
+	v4 = ((signed __int16)v2 >> 6) & 0xFFFF;
+	v5 = 1;
+	while (v4)
+	{
+		v5 = (v5 + 1) & 0xFFFF;
+		v4 = ((signed __int16)v4 >> 1) & 0xFFFF;
+	}
+	v6 = (~(v3 >> v5) & 0xF | 16 * (signed __int16)(8 - v5)) & 0xFFFF;
+	v8 = v6;
+	if (a1 >= 0)
+		v8 = v6 | 0x80;
+	return v8;
+}
+
+int adpcm_decoder(int a1, char *a2, int16_t *a3, int a4, int a5)
+{
+	signed int v5; // r5
+	int16_t *v6; // r6
+	int v7; // r4
+	int v8; // r0
+	int v9; // r0
+	int16_t *v10; // r6
+	int v11; // r7
+	int v12; // r2
+	char v13; // r1
+	int v14; // r1
+	char v15; // r2
+	int v16; // r3
+	int v17; // r2
+	int v18; // r0
+	int v19; // r0
+	int result; // r0
+	int v21; // [sp+0h] [bp-38h]
+	char *v22; // [sp+4h] [bp-34h]
+	int v23; // [sp+8h] [bp-30h]
+	int v24; // [sp+Ch] [bp-2Ch]
+	int v25; // [sp+18h] [bp-20h]
+	int v26; // [sp+1Ch] [bp-1Ch]
+
+	v26 = a4;
+	v25 = a1;
+	v5 = a2[2];
+	v6 = a3;
+	v7 = (a2[1] << 8) | *a2;
+	v22 = a2 + 4;
+	if (a1)
+	{
+		v8 = alaw_compress((signed __int16)((a2[1] << 8) | *a2));
+		v9 = (v8 | (v8 << 8)) & 0xFFFF;
+		*v6 = v9;
+		v6[1] = v9;
+	}
+	else
+	{
+		*a3 = (a2[1] << 8) | *a2;
+		a3[1] = v7;
+	}
+	v10 = &v6[a5];
+	v11 = *(uint32_t *)&asc_E5F0[4 * v5];
+	v21 = 0;
+	v24 = 0;
+	v23 = 0;
+	while (1)
+	{
+		result = v21;
+		if (v21 >= v26 - 1)
+			break;
+		if (v24)
+		{
+			v12 = (v23 >> 4) & 0xF;
+		}
+		else
+		{
+			v13 = *v22++;
+			v23 = v13;
+			v12 = v13 & 0xF;
+		}
+		v24 ^= 1u;
+		v5 += dword_E6F0[v12 + 25];
+		if (v5 < 0)
+		{
+			v5 = 0;
+		}
+		else if (v5 > 88)
+		{
+			v5 = 88;
+		}
+		v14 = v12 & 8;
+		v15 = v12 & 7;
+		v16 = v11 >> 3;
+		if (v15 & 4)
+			v16 += v11;
+		if (v15 & 2)
+			v16 += v11 >> 1;
+		if (v15 & 1)
+			v16 += v11 >> 2;
+		v17 = v7 + v16;
+		if (v14)
+			v17 = v7 - v16;
+		v7 = v17;
+
+		if (v17 < -32768)
+			v7 = -32768;
+		if (v7 > 0x7FFF)
+			v7 = 0x7FFF;
+
+		v11 = *(uint32_t *)&asc_E5F0[4 * v5];
+		if (v25)
+		{
+			v18 = alaw_compress((signed __int16)v7);
+			v19 = (v18 | (v18 << 8)) & 0xFFFF;
+			*v10 = v19;
+			v10[1] = v19;
+		}
+		else
+		{
+			*v10 = v7;
+			v10[1] = v7;
+		}
+		v10 += a5;
+		++v21;
+	}
+	return result;
+}
+
+/*
+struct TState
+{
+	coefficient: [coefficient1, coefficient2],
+	coeff1 : [],
+	coeff2 : [],
+	delta : [],
+	sample1 : [],
+	sample2 : [],
+};
+
+void decodeAdpcmMs(const std::vector<uint8_t>& buf, int numChannels, const std::vector<uint8_t>& coefficient1, const std::vector<uint8_t>& coefficient2) {
+	
+	let offset = 0;
+
+	// Read MS-ADPCM header
+	for (let i = 0; i < channels; i++) {
+		const predictor = clamp(buf.readUInt8(offset), 0, 6);
+		offset += 1;
+
+		state.coeff1[i] = state.coefficient[0][predictor];
+		state.coeff2[i] = state.coefficient[1][predictor];
+	}
+
+	for (let i = 0; i < channels; i++) { state.delta.push(buf.readInt16LE(offset)); offset += 2; }
+	for (let i = 0; i < channels; i++) { state.sample1.push(buf.readInt16LE(offset)); offset += 2; }
+	for (let i = 0; i < channels; i++) { state.sample2.push(buf.readInt16LE(offset)); offset += 2; }
+
+	// Decode
+	const output = [];
+
+	for (let i = 0; i < channels; i++)
+		output[i] = [state.sample2[i], state.sample1[i]];
+
+	let channel = 0;
+	while (offset < buf.length) {
+		const byte = buf.readUInt8(offset);
+		offset += 1;
+
+		output[channel].push(expandNibble(byte >> 4, state, channel));
+		channel = (channel + 1) % channels;
+
+		output[channel].push(expandNibble(byte & 0xf, state, channel));
+		channel = (channel + 1) % channels;
+	}
+
+	return output;
+}
+
+
+void expandNibble(nibble, state, channel) {
+
+}
+
+function expandNibble(nibble, state, channel) {
+	const signed = 8 <= nibble ? nibble - 16 : nibble;
+
+	let predictor = ((
+		state.sample1[channel] * state.coeff1[channel] +
+		state.sample2[channel] * state.coeff2[channel]
+		) >> 8) + (signed * state.delta[channel]);
+
+	predictor = clamp(predictor, -0x8000, 0x7fff);
+
+	state.sample2[channel] = state.sample1[channel];
+	state.sample1[channel] = predictor;
+
+	state.delta[channel] = Math.floor(ADAPTATION_TABLE[nibble] * state.delta[channel] / 256);
+	if (state.delta[channel] < 16) state.delta[channel] = 16;
+
+	return predictor;
+}
+*/
+
+#define CLIP(data, min, max) \
+if ((data) > (max)) data = max; \
+else if ((data) < (min)) data = min;
+
+/* step table */
+static const uint16_t step_table[89] = {
+	7, 8, 9, 10, 11, 12, 13, 14,
+	16, 17, 19, 21, 23, 25, 28, 31,
+	34, 37, 41, 45, 50, 55, 60, 66,
+	73, 80, 88, 97, 107, 118, 130, 143,
+	157, 173, 190, 209, 230, 253, 279, 307,
+	337, 371, 408, 449, 494, 544, 598, 658,
+	724, 796, 876, 963, 1060, 1166, 1282, 1411,
+	1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024,
+	3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484,
+	7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+	15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794,
+	32767
+};
+
+/* step index tables */
+static const int index_table[] = {
+	/* adpcm data size is 4 */
+	-1, -1, -1, -1, 2, 4, 6, 8
+};
+
+/********************************* 4-bit ADPCM decoder ********************************/
+
+/* Decode the block of ADPCM data into PCM. This requires no context because ADPCM blocks
+* are indeppendently decodable. This assumes that a single entire block is always decoded;
+* it must be called multiple times for multiple blocks and cannot resume in the middle of a
+* block.
+*
+* Parameters:
+*  outbuf          destination for interleaved PCM samples
+*  inbuf           source ADPCM block
+*  inbufsize       size of source ADPCM block
+*  channels        number of channels in block (must be determined from other context)
+*
+* Returns number of converted composite samples (total samples divided by number of channels)
+*/
+
+int adpcm_decode_block(int16_t *outbuf, const uint8_t *inbuf, size_t inbufsize, int channels)
+{
+	int ch, samples = 1, chunks;
+	int32_t pcmdata[2];
+	int8_t index[2];
+
+	if (inbufsize < (uint32_t)channels * 4)
+		return 0;
+
+	for (ch = 0; ch < channels; ch++) {
+		*outbuf++ = pcmdata[ch] = (int16_t)(inbuf[0] | (inbuf[1] << 8));
+		index[ch] = inbuf[2];
+
+		if (index[ch] < 0 || index[ch] > 88 || inbuf[3])     // sanitize the input a little...
+			return 0;
+
+		inbufsize -= 4;
+		inbuf += 4;
+	}
+
+	chunks = inbufsize / (channels * 4);
+	samples += chunks * 8;
+
+	while (chunks--) {
+		int ch, i;
+
+		for (ch = 0; ch < channels; ++ch) {
+
+			for (i = 0; i < 4; ++i) {
+				int step = step_table[index[ch]], delta = step >> 3;
+
+				if (*inbuf & 1) delta += (step >> 2);
+				if (*inbuf & 2) delta += (step >> 1);
+				if (*inbuf & 4) delta += step;
+				if (*inbuf & 8) delta = -delta;
+
+				pcmdata[ch] += delta;
+				index[ch] += index_table[*inbuf & 0x7];
+				CLIP(index[ch], 0, 88);
+				CLIP(pcmdata[ch], -32768, 32767);
+				outbuf[i * 2 * channels] = pcmdata[ch];
+
+				step = step_table[index[ch]], delta = step >> 3;
+
+				if (*inbuf & 0x10) delta += (step >> 2);
+				if (*inbuf & 0x20) delta += (step >> 1);
+				if (*inbuf & 0x40) delta += step;
+				if (*inbuf & 0x80) delta = -delta;
+
+				pcmdata[ch] += delta;
+				index[ch] += index_table[(*inbuf >> 4) & 0x7];
+				CLIP(index[ch], 0, 88);
+				CLIP(pcmdata[ch], -32768, 32767);
+				outbuf[(i * 2 + 1) * channels] = pcmdata[ch];
+
+				inbuf++;
+			}
+
+			outbuf++;
+		}
+
+		outbuf += channels * 7;
+	}
+
+	return samples;
 }
