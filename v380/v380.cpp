@@ -421,7 +421,7 @@ int main(int argc, const char* argv[])
 			buf.clear();
 
 			if (output_type == 2) {
-				flv.Init(true, false);
+				flv.Init(true, true);
 			}
 
 			bool exitloop = false;

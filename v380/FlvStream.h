@@ -16,10 +16,11 @@ class FlvStream
 {
 private:
 	FILE* m_hFile;
-	uint32_t m_AudioTick;
+	uint32_t m_AudioDts;
+	uint32_t m_AudioPts;
 	uint32_t m_VideoDts;
 	uint32_t m_VideoPts;
-	uint32_t m_LastVideoTick;
+	uint32_t m_LastTimestamp;
 	bool m_EnableVideo;
 	bool m_EnableAudio;
 
