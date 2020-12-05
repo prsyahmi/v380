@@ -572,7 +572,7 @@ int alaw_compress(int16_t a1)
 	int16_t v4; // r3
 	int16_t v5; // r2
 	int v6; // r2
-	unsigned __int8 v8; // [sp+6h] [bp-2h]
+	uint8_t v8; // [sp+6h] [bp-2h]
 
 	v1 = a1 >> 2;
 	if (a1 < 0)
@@ -581,14 +581,14 @@ int alaw_compress(int16_t a1)
 	if (v2 > 0x1FFF)
 		v2 = 0x1FFF;
 	v3 = v2;
-	v4 = ((signed __int16)v2 >> 6) & 0xFFFF;
+	v4 = ((int16_t)v2 >> 6) & 0xFFFF;
 	v5 = 1;
 	while (v4)
 	{
 		v5 = (v5 + 1) & 0xFFFF;
-		v4 = ((signed __int16)v4 >> 1) & 0xFFFF;
+		v4 = ((int16_t)v4 >> 1) & 0xFFFF;
 	}
-	v6 = (~(v3 >> v5) & 0xF | 16 * (signed __int16)(8 - v5)) & 0xFFFF;
+	v6 = (~(v3 >> v5) & 0xF | 16 * (int16_t)(8 - v5)) & 0xFFFF;
 	v8 = v6;
 	if (a1 >= 0)
 		v8 = v6 | 0x80;
@@ -628,7 +628,7 @@ int adpcm_decoder(int a1, char *a2, int16_t *a3, int a4, int a5)
 	v22 = a2 + 4;
 	if (a1)
 	{
-		v8 = alaw_compress((signed __int16)((a2[1] << 8) | *a2));
+		v8 = alaw_compress((int16_t)((a2[1] << 8) | *a2));
 		v9 = (v8 | (v8 << 8)) & 0xFFFF;
 		*v6 = v9;
 		v6[1] = v9;
@@ -690,7 +690,7 @@ int adpcm_decoder(int a1, char *a2, int16_t *a3, int a4, int a5)
 		v11 = *(uint32_t *)&asc_E5F0[4 * v5];
 		if (v25)
 		{
-			v18 = alaw_compress((signed __int16)v7);
+			v18 = alaw_compress((int16_t)v7);
 			v19 = (v18 | (v18 << 8)) & 0xFFFF;
 			*v10 = v19;
 			v10[1] = v19;
