@@ -150,6 +150,7 @@
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="UtlDiscovery.h" />
+    <ClInclude Include="UtlSemaphore.h" />
     <ClInclude Include="UtlSocket.h" />
   </ItemGroup>
   <ItemGroup>

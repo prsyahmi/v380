@@ -55,3 +55,9 @@ static int WSAGetLastError()
 #include <chrono>
 #include <algorithm>
 #include <iterator>
+#include <thread>
+#include <mutex>
+#include <deque>
+#include <condition_variable>
+
+#include "UtlSemaphore.h"

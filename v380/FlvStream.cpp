@@ -168,7 +168,6 @@ uint8_t onMetadata[304] = {
 	0x73, 0x69, 0x7A, 0x65, 0x00, 0x41, 0xAD, 0x18, 0x2B, 0x2E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09
 };
 
-typedef std::chrono::high_resolution_clock hires_clock;
 const uint32_t offsetDuration = 40;
 const uint32_t offsetWidth = 56;
 const uint32_t offsetHeight = 73;
@@ -202,7 +201,32 @@ FlvStream::FlvStream()
 	, m_LastVideoTick(0)
 	, m_EnableVideo(false)
 	, m_EnableAudio(false)
+	, m_Exit(false)
 {
+	m_Thread = std::thread([&]() {
+		std::deque<TQueue> packetQueue;
+
+		while (!m_Exit) {
+			{
+				//std::lock_guard<std::mutex> lg(m_Mutex);
+				m_Semaphore.wait();
+				packetQueue.swap(m_PacketQueue);
+			}
+
+			while (packetQueue.size()) {
+				TQueue& q = packetQueue.front();
+				if (q.m_Type == eQueueType_Video) {
+					WriteVideo(q.m_Packet, false);
+				} else if (q.m_Type == eQueueType_VideoKeyFrame) {
+					WriteVideo(q.m_Packet, true);
+				} else if (q.m_Type == eQueueType_Audio) {
+					WriteAudio(q.m_Packet);
+				}
+
+				packetQueue.pop_front();
+			}
+		}
+	});
 }
 
 
@@ -211,6 +235,9 @@ FlvStream::~FlvStream()
 	if (m_hFile) {
 		fclose(m_hFile);
 	}
+
+	m_Exit = true;
+	if (m_Thread.joinable()) m_Thread.join();
 }
 
 void FlvStream::Init(bool enableVideo, bool enableAudio)
@@ -252,12 +279,18 @@ void FlvStream::Init(bool enableVideo, bool enableAudio)
 
 void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 {
-	if (!m_EnableVideo) {
+	if (!m_EnableVideo || m_Exit) {
 		return;
 	}
-	//if (m_hFile == NULL) {
-	//	return;
-	//}
+
+	if (m_Thread.get_id() != std::this_thread::get_id()) {
+		//std::lock_guard<std::mutex> lg(m_Mutex);
+		m_PacketQueue.push_back({
+			keyframe ? eQueueType_VideoKeyFrame : eQueueType_Video,
+			packet
+		});
+		m_Semaphore.notify();
+	}
 
 	TFlvTag tag;
 	TFlvVideoData vidData;
@@ -420,13 +453,18 @@ int adpcm_decoder(int a1, char *a2, int16_t *a3, int a4, int a5);
 
 void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 {
-	if (!m_EnableAudio) {
+	if (!m_EnableAudio || m_Exit) {
 		return;
 	}
 
-	//if (m_hFile == NULL) {
-	//	return;
-	//}
+	if (m_Thread.get_id() != std::this_thread::get_id()) {
+		//std::lock_guard<std::mutex> lg(m_Mutex);
+		m_PacketQueue.push_back({
+			eQueueType_Audio,
+			packet
+		});
+		m_Semaphore.notify();
+	}
 
 	TFlvTag tag;
 	TFlvAudioData audData;
