@@ -149,6 +149,7 @@
     <ClInclude Include="FlvStream.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="UtlBuffer.h" />
     <ClInclude Include="UtlDiscovery.h" />
     <ClInclude Include="UtlSemaphore.h" />
     <ClInclude Include="UtlSocket.h" />

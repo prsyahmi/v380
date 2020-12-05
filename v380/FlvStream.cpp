@@ -303,6 +303,8 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 		return;
 	}
 
+	UtlBuffer buffer;
+
 	TFlvTag tag;
 	TFlvVideoData vidData;
 	TFlvAvcVideoPacket avc;
@@ -422,17 +424,19 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 		tag.Timestamp.setSwap(0);
 		tag.TimestampExtended = 0;
 		tag.StreamID.setSwap(0);
-		fwrite(&tag, 1, sizeof(tag), stdout);
+		buffer.Write(tag);
+
 		vidData.FrameType = 1;
 		vidData.CodecID = 7;
-		fwrite(&vidData, 1, sizeof(vidData), stdout);
+		buffer.Write(vidData);
+
 		avc.AVCPacketType = 0;
 		avc.CompositionTime.setSwap(0);
-		fwrite(&avc, 1, sizeof(avc), stdout);
-		fwrite(AvcDcrData.data(), 1, AvcDcrData.size(), stdout);
+		buffer.Write(avc);
+		buffer.Write(AvcDcrData);
 
 		uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof(vidData) + sizeof(avc) + AvcDcrData.size());
-		fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
+		buffer.Write(prevTagSize);
 	}
 
 	// Not sure yet how to construct timestamp and compositionTime
@@ -443,23 +447,24 @@ void FlvStream::WriteVideo(const std::vector<uint8_t>& packet, bool keyframe)
 	tag.Timestamp.setSwap(timestamp);
 	tag.TimestampExtended = 0;
 	tag.StreamID.setSwap(0);
-	fwrite(&tag, 1, sizeof(tag), stdout);
+	buffer.Write(tag);
 
 	vidData.FrameType = keyframe ? 1 : 2;
 	vidData.CodecID = 7;
-	fwrite(&vidData, 1, sizeof(vidData), stdout);
+	buffer.Write(vidData);
 
 	avc.AVCPacketType = 1;
 	avc.CompositionTime.setSwap(cts);
-	fwrite(&avc, 1, sizeof(avc), stdout);
+	buffer.Write(avc);
 
 	for (auto it = Nals.begin(); it != Nals.end(); it++) {
-		fwrite(it->data(), 1, it->size(), stdout);
+		buffer.Write(*it);
 	}
 
 	uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof(vidData) + sizeof(avc) + totalNalSize);
-	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
+	buffer.Write(prevTagSize);
 
+	fwrite(buffer.GetBuffer().data(), 1, buffer.GetBuffer().size(), stdout);
 	fflush(stdout);
 }
 
@@ -481,12 +486,14 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 		return;
 	}
 
+	UtlBuffer buffer;
+
 	TFlvTag tag;
 	TFlvAudioData audData;
 	std::vector<uint8_t> packetOnly(packet.begin() + 18, packet.end());
 	std::vector<int16_t> pcmData;
 
-	pcmData.resize(1024, 0);
+	pcmData.resize(2048, 0);
 
 	// There is no output format for ADPCM 8000hz, we need to convert it internally
 	int nPcmData = adpcm_decoder(0, (char *)packetOnly.data(), pcmData.data(), 505, 1);
@@ -520,7 +527,7 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	tag.Timestamp.setSwap(timestamp);
 	tag.TimestampExtended = 0;
 	tag.StreamID.setSwap(0);
-	fwrite(&tag, 1, sizeof(TFlvTag), stdout);
+	buffer.Write(tag);
 
 	// Format 3: linear PCM, stores raw PCM samples.
 	// If the data is 8 - bit, the samples are unsigned bytes.
@@ -530,13 +537,14 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	audData.SoundRate = 1; // 11khz
 	audData.SoundSize = 1;
 	audData.SoundType = 0;
-	fwrite(&audData, 1, sizeof(audData), stdout);
+	buffer.Write(audData);
 
-	fwrite(pcmData.data(), 1, nPcmData, stdout);
+	buffer.Write(pcmData.data(), nPcmData);
 
-	uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof (audData) + nPcmData);
-	fwrite(&prevTagSize, 1, sizeof(uint32_t), stdout);
+	uint32_t prevTagSize = bswap_u32(sizeof(tag) + sizeof(audData) + nPcmData);
+	buffer.Write(prevTagSize);
 
+	fwrite(buffer.GetBuffer().data(), 1, buffer.GetBuffer().size(), stdout);
 	fflush(stdout);
 }
 

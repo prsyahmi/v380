@@ -39,6 +39,9 @@
     <ClInclude Include="UtlSemaphore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="UtlBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

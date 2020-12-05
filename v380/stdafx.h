@@ -61,3 +61,4 @@ static int WSAGetLastError()
 #include <condition_variable>
 
 #include "UtlSemaphore.h"
+#include "UtlBuffer.h"
