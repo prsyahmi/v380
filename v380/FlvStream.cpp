@@ -497,6 +497,7 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 
 	// There is no output format for ADPCM 8000hz, we need to convert it internally
 	int nPcmData = adpcm_decoder(0, (char *)packetOnly.data(), pcmData.data(), 505, 1);
+	nPcmData *= sizeof(uint16_t);
 
 	uint32_t rdts = *(uint32_t*)(packet.data() + 0);
 	uint32_t rpts = *(uint32_t*)(packet.data() + 8);
