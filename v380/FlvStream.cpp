@@ -492,12 +492,28 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	TFlvAudioData audData;
 	std::vector<uint8_t> packetOnly(packet.begin() + 18, packet.end());
 	std::vector<int16_t> pcmData;
+	std::vector<int16_t> resampledData;
 
-	pcmData.resize(2048, 0);
+	pcmData.resize(1024, 0);
 
 	// There is no output format for ADPCM 8000hz, we need to convert it internally
 	int nPcmData = adpcm_decoder(0, (char *)packetOnly.data(), pcmData.data(), 505, 1);
-	nPcmData *= sizeof(uint16_t);
+
+	// 8000hz to 11025hz
+
+	float factor2 = 11025.0f / 8000.0f; // 1.378125
+	resampledData.resize(int(factor2 * nPcmData));
+	
+	for (int i = 0; i < nPcmData - 1; i++)
+	{
+		resampledData[int(i * factor2 + 0)] = uint16_t(pcmData[i] * 2.f / factor2 + pcmData[i + 1] * 1.f / factor2);
+		resampledData[int(i * factor2 + 1)] = uint16_t(pcmData[i] * 1.f / factor2 + pcmData[i + 1] * 2.f / factor2);
+	}
+	resampledData[resampledData.size() - 1] = resampledData[resampledData.size() - 2];
+
+	pcmData.swap(resampledData);
+	nPcmData = pcmData.size();
+	nPcmData *= sizeof(int16_t);
 
 	uint32_t rdts = *(uint32_t*)(packet.data() + 0);
 	uint32_t rpts = *(uint32_t*)(packet.data() + 8);
@@ -549,7 +565,7 @@ void FlvStream::WriteAudio(const std::vector<uint8_t>& packet)
 	fflush(stdout);
 }
 
-const uint32_t asc_E5F0[] = {
+const int32_t asc_E5F0[] = {
 	0x07, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00,
 	0x0B, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x0D, 0x00, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x00,
 	0x10, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x00, 0x13, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x00,
@@ -568,7 +584,7 @@ const uint32_t asc_E5F0[] = {
 	0xE0, 0x08, 0x00, 0x00, 0xC3, 0x09, 0x00, 0x00, 0xBD, 0x0A, 0x00, 0x00, 0xD0, 0x0B, 0x00, 0x00
 };
 
-const uint32_t dword_E6F0[] = {
+const int32_t dword_E6F0[] = {
 	0xFF, 0x0C, 0x00, 0x00, 0x4C, 0x0E, 0x00, 0x00, 0xBA, 0x0F, 0x00, 0x00, 0x4C, 0x11, 0x00, 0x00,
 	0x07, 0x13, 0x00, 0x00, 0xEE, 0x14, 0x00, 0x00, 0x06, 0x17, 0x00, 0x00, 0x54, 0x19, 0x00, 0x00,
 	0xDC, 0x1B, 0x00, 0x00, 0xA5, 0x1E, 0x00, 0x00, 0xB6, 0x21, 0x00, 0x00, 0x15, 0x25, 0x00, 0x00,
@@ -596,14 +612,14 @@ int alaw_compress(int16_t a1)
 	if (v2 > 0x1FFF)
 		v2 = 0x1FFF;
 	v3 = v2;
-	v4 = ((int16_t)v2 >> 6) & 0xFFFF;
+	v4 = (v2 >> 6) & 0xFFFF;
 	v5 = 1;
 	while (v4)
 	{
 		v5 = (v5 + 1) & 0xFFFF;
-		v4 = ((int16_t)v4 >> 1) & 0xFFFF;
+		v4 = (v4 >> 1) & 0xFFFF;
 	}
-	v6 = (~(v3 >> v5) & 0xF | 16 * (int16_t)(8 - v5)) & 0xFFFF;
+	v6 = (~(v3 >> v5) & 0xF | 16 * (8 - v5)) & 0xFFFF;
 	v8 = v6;
 	if (a1 >= 0)
 		v8 = v6 | 0x80;
@@ -702,7 +718,7 @@ int adpcm_decoder(int a1, char *a2, int16_t *a3, int a4, int a5)
 		if (v7 > 0x7FFF)
 			v7 = 0x7FFF;
 
-		v11 = *(uint32_t *)&asc_E5F0[4 * v5];
+		v11 = *(int32_t *)&asc_E5F0[4 * v5];
 		if (v25)
 		{
 			v18 = alaw_compress((int16_t)v7);
