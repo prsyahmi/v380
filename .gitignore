@@ -19,3 +19,4 @@ ipch
 *.pdb
 *.o
 v380/v380
+*.xcuserstate
